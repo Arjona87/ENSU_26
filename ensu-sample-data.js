@@ -1,118 +1,42 @@
 /* ============================================================
    DATOS DE MUESTRA — ENSU Jalisco
    ============================================================
-   Este archivo NO son datos oficiales completos. Se usan solo
-   como respaldo (fallback) mientras:
-     a) el Google Sheet no esté compartido como público, o
-     b) processSheetData() todavía no coincida con la estructura
-        real de tu Sheet.
+   A diferencia de la versión anterior, estos datos SÍ son reales —
+   transcritos directamente de la captura de pantalla que compartiste
+   del Sheet (hoja "Hoja 2", gid 1672888382), para los 8 trimestres
+   que se alcanzaban a ver completos (mar 2018 a dic 2019).
 
-   La serie del indicador "Percepción de inseguridad" para
-   Guadalajara, Zapopan, Puerto Vallarta y el Promedio Nacional
-   en T3 2025 / T4 2025 / T1 2026 SÍ está tomada de boletines
-   públicos de INEGI/IIEG (ver fuente en el pie de la página).
-   El resto de los trimestres y el resto de los indicadores son
-   valores generados solo para que la interfaz se vea y funcione
-   completa — reemplázalos en cuanto conectemos tu Sheet real.
+   Esto se usa solo como respaldo si la carga en vivo del Sheet falla.
+   En cuanto la carga en vivo funcione, vas a ver TODOS tus indicadores
+   y TODO tu histórico real (no solo estos 8 trimestres de 2 indicadores).
+
+   Nota: en la captura, "Desempeño de la Policía Estatal" solo alcanzaba
+   a verse completo para Nacional y Zapopan (el resto de filas quedaban
+   fuera de la captura) — por eso ese indicador solo trae esas 2 áreas
+   aquí. No inventé el resto.
    ============================================================ */
 
-const SAMPLE_PERIODS = [
-    'T1 2024', 'T2 2024', 'T3 2024', 'T4 2024',
-    'T1 2025', 'T2 2025', 'T3 2025', 'T4 2025', 'T1 2026'
-];
-
-const AREAS = [
-    'Guadalajara',
-    'Zapopan',
-    'San Pedro Tlaquepaque',
-    'Tlajomulco de Zúñiga',
-    'Tonalá',
-    'Puerto Vallarta',
-    'Promedio Nacional'
-];
-
-// Pequeño generador determinístico (sin Math.random) para que la
-// muestra se vea con variación natural pero sea reproducible.
-function seededSeries(base, drift, seed) {
-    const values = [];
-    let v = base;
-    for (let i = 0; i < SAMPLE_PERIODS.length; i++) {
-        const wiggle = Math.sin(seed + i * 1.7) * 1.4;
-        v = v + drift + wiggle;
-        values.push(Math.max(5, Math.min(97, Math.round(v * 10) / 10)));
-    }
-    return values;
-}
-
 function buildSampleData() {
+    const periods = ['mar 2018', 'jun 2018', 'sep 2018', 'dic 2018', 'mar 2019', 'jun 2019', 'sep 2019', 'dic 2019'];
+
+    const s = (values) => ({ periods, values });
+
     const data = {};
 
-    // ---- 1. Percepción de inseguridad ----
-    // Guadalajara, Zapopan, Puerto Vallarta y Nacional: últimos 3
-    // puntos alineados con boletines públicos de INEGI/IIEG.
-    data['Percepción de inseguridad'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: [74.0, 75.5, 76.8, 77.5, 78.0, 78.4, 78.9, 79.2, 90.0] },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: [47.0, 48.2, 49.0, 49.8, 49.0, 49.3, 49.5, 54.7, 70.8] },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(60, 1.5, 1) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(58, 1.9, 2) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(55, 1.9, 3) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: [28.0, 27.0, 26.0, 25.5, 25.0, 24.9, 24.7, 32.0, 59.9] },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: [63.3, 62.9, 62.2, 61.7, 61.9, 62.5, 63.0, 63.8, 61.5] }
+    data['Percepción de inseguridad en su ciudad'] = {
+        'Nacional': s([76.8, 75.9, 74.9, 73.7, 74.6, 73.9, 71.3, 72.9]),
+        'Zapopan': s([null, 73.8, 67.6, 62.9, 68.6, 70.6, 68.4, 69.3]),
+        'Guadalajara': s([72.6, 82.4, 86.2, 86.8, 81.2, 85.0, 84.0, 82.3]),
+        'Tonalá': s([null, 78.0, 74.2, 80.4, 85.1, 76.6, 76.9, 82.1]),
+        'Tlajomulco': s([null, 78.5, 73.5, 74.5, 72.8, 65.0, 72.5, 80.5]),
+        'Tlaquepaque': s([null, 74.5, 74.2, 77.2, 80.2, 72.6, 72.5, 70.6]),
+        'Puerto Vallarta': s([51.9, 36.6, 41.4, 38.7, 57.4, 43.1, 37.8, 34.2]),
+        'Media Estatal': s([62.3, 70.6, 69.5, 70.1, 74.2, 68.8, 68.7, 69.8])
     };
 
-    // ---- 2. Victimización en el hogar ----
-    data['Victimización en el hogar'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: seededSeries(34, 0.4, 4) },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: seededSeries(30, 0.3, 5) },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(29, 0.4, 6) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(28, 0.5, 7) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(31, 0.4, 8) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: seededSeries(22, 0.2, 9) },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: seededSeries(30, 0.3, 10) }
-    };
-
-    // ---- 3. Confianza en la policía municipal ----
-    data['Confianza en la policía municipal'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: seededSeries(41, -0.3, 11) },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: seededSeries(48, -0.2, 12) },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(40, -0.2, 13) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(42, -0.3, 14) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(38, -0.3, 15) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: seededSeries(55, -0.1, 16) },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: seededSeries(46, -0.2, 17) }
-    };
-
-    // ---- 4. Expectativa sobre delincuencia (seguirá igual o peor) ----
-    data['Expectativa sobre delincuencia'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: seededSeries(70, 0.4, 18) },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: seededSeries(63, 0.5, 19) },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(68, 0.4, 20) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(65, 0.5, 21) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(69, 0.4, 22) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: seededSeries(45, 0.6, 23) },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: seededSeries(61, 0.2, 24) }
-    };
-
-    // ---- 5. Cambio de hábitos por temor ----
-    data['Cambio de hábitos por temor'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: seededSeries(66, 0.3, 25) },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: seededSeries(58, 0.4, 26) },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(60, 0.3, 27) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(59, 0.4, 28) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(61, 0.3, 29) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: seededSeries(40, 0.5, 30) },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: seededSeries(57, 0.2, 31) }
-    };
-
-    // ---- 6. Desempeño del gobierno (poco o nada efectivo) ----
-    data['Desempeño del gobierno'] = {
-        'Guadalajara': { periods: SAMPLE_PERIODS, values: seededSeries(78, 0.1, 32) },
-        'Zapopan': { periods: SAMPLE_PERIODS, values: seededSeries(70, 0.2, 33) },
-        'San Pedro Tlaquepaque': { periods: SAMPLE_PERIODS, values: seededSeries(80, 0.1, 34) },
-        'Tlajomulco de Zúñiga': { periods: SAMPLE_PERIODS, values: seededSeries(74, 0.2, 35) },
-        'Tonalá': { periods: SAMPLE_PERIODS, values: seededSeries(81, 0.1, 36) },
-        'Puerto Vallarta': { periods: SAMPLE_PERIODS, values: seededSeries(58, 0.3, 37) },
-        'Promedio Nacional': { periods: SAMPLE_PERIODS, values: seededSeries(72, 0.1, 38) }
+    data['Desempeño PolicíaEstatal'] = {
+        'Nacional': s([47.2, 46.6, 48.6, 47.9, 49.5, 49.8, 50.6, 48.4]),
+        'Zapopan': s([null, 50.6, 57.5, 65.8, 54.6, 52.0, 53.0, 54.8])
     };
 
     return data;

@@ -1,73 +1,31 @@
 /* ============================================================
    APP — ENSU Jalisco
+   ============================================================
+   Los indicadores y los municipios YA NO están escritos a mano: se
+   descubren a partir de lo que regrese processSheetData() (ver
+   google-sheets-connector.js), porque la estructura real del Sheet es
+   "un bloque por indicador" y no sabemos de antemano cuántos
+   indicadores tiene ni si en el futuro agregas más.
    ============================================================ */
-
-const INDICATORS = [
-    {
-        key: 'Percepción de inseguridad',
-        label: 'Percepción de inseguridad',
-        desc: 'Población de 18 años y más que considera insegura su ciudad',
-        unit: '%',
-        higherIsBad: true
-    },
-    {
-        key: 'Victimización en el hogar',
-        label: 'Victimización en el hogar',
-        desc: 'Hogares con al menos una persona víctima de un delito',
-        unit: '%',
-        higherIsBad: true
-    },
-    {
-        key: 'Confianza en la policía municipal',
-        label: 'Confianza en la policía municipal',
-        desc: 'Población que considera efectiva a la policía municipal',
-        unit: '%',
-        higherIsBad: false
-    },
-    {
-        key: 'Expectativa sobre delincuencia',
-        label: 'Expectativa sobre delincuencia',
-        desc: 'Cree que la delincuencia seguirá igual de mal o empeorará',
-        unit: '%',
-        higherIsBad: true
-    },
-    {
-        key: 'Cambio de hábitos por temor',
-        label: 'Cambio de hábitos por temor',
-        desc: 'Cambió hábitos cotidianos por temor a ser víctima de un delito',
-        unit: '%',
-        higherIsBad: true
-    },
-    {
-        key: 'Desempeño del gobierno',
-        label: 'Desempeño del gobierno',
-        desc: 'Considera poco o nada efectivo el desempeño del gobierno',
-        unit: '%',
-        higherIsBad: true
-    }
-];
-
-const MUNICIPIOS = [
-    'Guadalajara',
-    'Zapopan',
-    'San Pedro Tlaquepaque',
-    'Tlajomulco de Zúñiga',
-    'Tonalá',
-    'Puerto Vallarta'
-];
-
-const AMG_MUNICIPIOS = ['Guadalajara', 'Zapopan', 'San Pedro Tlaquepaque', 'Tlajomulco de Zúñiga', 'Tonalá'];
 
 const CHART_COLORS = {
     municipio: '#1a3a52',
     comparativo: '#c41e3a'
 };
 
+const COMPARATIVO_LABELS = {
+    'Nacional': 'Promedio Nacional',
+    'Media Estatal': 'Media Estatal (Jalisco)'
+};
+
 let ENSU_DATA = null;
 let USING_SAMPLE_DATA = false;
 let LAST_LOAD_ERROR = null;
-let currentMunicipio = 'Guadalajara';
-let currentComparativo = 'Promedio Nacional'; // o 'AMG (promedio)'
+
+let INDICATOR_KEYS = [];   // ej. ['Percepción de inseguridad en su ciudad', ...]
+let MUNICIPIOS = [];       // áreas que NO son de referencia (Nacional / Media Estatal)
+let currentMunicipio = null;
+let currentComparativo = 'Nacional';
 let activeChart = null;
 
 // ===== Utilidades sobre series =====
@@ -96,32 +54,39 @@ function getSeries(indicatorKey, area) {
     return ENSU_DATA[indicatorKey][area] || null;
 }
 
-function getAmgAverageSeries(indicatorKey) {
-    const componentSeries = AMG_MUNICIPIOS
-        .map(m => getSeries(indicatorKey, m))
-        .filter(Boolean);
-    if (componentSeries.length === 0) return null;
-
-    const periods = componentSeries[0].periods;
-    const values = periods.map((_, idx) => {
-        const nums = componentSeries
-            .map(s => s.values[idx])
-            .filter(v => v !== null && v !== undefined);
-        if (nums.length === 0) return null;
-        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-        return Math.round(avg * 10) / 10;
-    });
-    return { periods, values };
+function getComparativoSeries(indicatorKey) {
+    return getSeries(indicatorKey, currentComparativo);
 }
 
-function getComparativoSeries(indicatorKey) {
-    if (currentComparativo === 'AMG (promedio)') {
-        return getAmgAverageSeries(indicatorKey);
-    }
-    return getSeries(indicatorKey, 'Promedio Nacional');
+// Heurística conservadora: solo coloreamos la variación como
+// "buena"/"mala" cuando el nombre del indicador deja claro qué significa
+// subir o bajar. Si no estamos seguros, se muestra en un tono neutral
+// en vez de arriesgarnos a pintar de rojo/verde algo que signifique lo
+// contrario.
+function inferHigherIsBad(indicatorKey) {
+    const n = normalizeText(indicatorKey);
+    if (n.includes('insegur') || n.includes('victim') || n.includes('delinc')) return true;
+    if (n.includes('confianza') || n.includes('efectiv')) return false;
+    return null; // desconocido -> neutral
 }
 
 // ===== Carga de datos =====
+
+function discoverStructure() {
+    INDICATOR_KEYS = Object.keys(ENSU_DATA || {});
+    const allAreas = new Set();
+    INDICATOR_KEYS.forEach(k => {
+        Object.keys(ENSU_DATA[k]).forEach(area => allAreas.add(area));
+    });
+    MUNICIPIOS = Array.from(allAreas).filter(a => !REFERENCE_AREAS.includes(a));
+
+    if (!currentMunicipio || !MUNICIPIOS.includes(currentMunicipio)) {
+        currentMunicipio = MUNICIPIOS.includes('Guadalajara') ? 'Guadalajara' : (MUNICIPIOS[0] || null);
+    }
+    if (!allAreas.has(currentComparativo)) {
+        currentComparativo = allAreas.has('Nacional') ? 'Nacional' : (REFERENCE_AREAS.find(a => allAreas.has(a)) || currentComparativo);
+    }
+}
 
 async function initData() {
     LAST_LOAD_ERROR = null;
@@ -140,14 +105,16 @@ async function initData() {
         ENSU_DATA = buildSampleData();
         USING_SAMPLE_DATA = true;
     }
+
+    discoverStructure();
 }
 
 // ===== Render: barra de contexto =====
 
 function renderContextBar() {
     const bar = document.getElementById('contextBar');
-    const anyIndicator = INDICATORS[0].key;
-    const series = getSeries(anyIndicator, currentMunicipio);
+    const anyIndicator = INDICATOR_KEYS[0];
+    const series = anyIndicator ? getSeries(anyIndicator, currentMunicipio) : null;
     const { latestPeriod } = lastTwoRealValues(series);
 
     bar.innerHTML = `
@@ -162,10 +129,10 @@ function renderContextBar() {
         notice.innerHTML = `
             <div class="box">
                 <span>⚠️</span>
-                <span><strong>Mostrando datos de muestra.</strong> No se pudo leer el Google Sheet en vivo.
+                <span><strong>Mostrando datos de muestra (2018-2019, transcritos de tu captura de pantalla).</strong>
+                No se pudo leer el Google Sheet en vivo todavía.
                 ${LAST_LOAD_ERROR ? `Motivo: <em>${LAST_LOAD_ERROR}</em>.` : ''}
-                Revisa que el Sheet esté compartido como "Cualquier usuario con el enlace puede ver" y que el
-                SHEET_ID/GID en <code>js/google-sheets-connector.js</code> sean correctos, luego presiona
+                Revisa que el Sheet esté compartido como "Cualquier usuario con el enlace puede ver", luego presiona
                 "Actualizar datos".</span>
             </div>`;
         notice.style.display = 'block';
@@ -188,21 +155,39 @@ function renderMunicipioChips() {
     wrap.querySelectorAll('.municipio-chip').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMunicipio = btn.dataset.municipio;
-            document.getElementById('municipioSelect').value = currentMunicipio;
-            renderAll();
+            const select = document.getElementById('municipioSelect');
+            if (select) select.value = currentMunicipio;
+            renderCards();
+            renderMunicipioChips();
         });
     });
 }
 
+// ===== Render: selects del header (poblados una vez que hay datos) =====
+
+function populateHeaderSelects() {
+    const municipioSelect = document.getElementById('municipioSelect');
+    municipioSelect.innerHTML = MUNICIPIOS.map(m =>
+        `<option value="${m}" ${m === currentMunicipio ? 'selected' : ''}>${m}</option>`
+    ).join('');
+
+    const compSelect = document.getElementById('comparativoSelect');
+    compSelect.innerHTML = REFERENCE_AREAS
+        .filter(a => INDICATOR_KEYS.some(k => getSeries(k, a)))
+        .map(a => `<option value="${a}" ${a === currentComparativo ? 'selected' : ''}>${COMPARATIVO_LABELS[a] || a}</option>`)
+        .join('');
+}
+
 // ===== Render: tarjetas de indicadores =====
 
-function formatValue(v, unit) {
+function formatValue(v) {
     if (v === null || v === undefined) return '—';
-    return `${v}${unit}`;
+    return `${v}%`;
 }
 
 function variationClass(delta, higherIsBad) {
     if (delta === null || delta === undefined || Math.abs(delta) < 0.05) return 'neutral';
+    if (higherIsBad === null) return 'neutral';
     const worse = higherIsBad ? delta > 0 : delta < 0;
     return worse ? 'negative' : 'positive';
 }
@@ -215,33 +200,39 @@ function variationArrow(delta) {
 function renderCards() {
     const grid = document.getElementById('summaryCards');
 
-    grid.innerHTML = INDICATORS.map(ind => {
-        const series = getSeries(ind.key, currentMunicipio);
+    if (INDICATOR_KEYS.length === 0) {
+        grid.innerHTML = `<div class="loading">No se encontraron indicadores reconocibles en el Sheet.</div>`;
+        return;
+    }
+
+    grid.innerHTML = INDICATOR_KEYS.map(key => {
+        const higherIsBad = inferHigherIsBad(key);
+        const series = getSeries(key, currentMunicipio);
         const { latest, previous } = lastTwoRealValues(series);
         const delta = (latest !== null && previous !== null) ? Math.round((latest - previous) * 10) / 10 : null;
-        const vClass = variationClass(delta, ind.higherIsBad);
+        const vClass = variationClass(delta, higherIsBad);
         const arrow = variationArrow(delta);
 
-        const compSeries = getComparativoSeries(ind.key);
+        const compSeries = getComparativoSeries(key);
         const { latest: compLatest } = lastTwoRealValues(compSeries);
         let compareLine = '';
-        if (latest !== null && compLatest !== null) {
+        if (latest !== null && compLatest !== null && currentMunicipio) {
             const diff = Math.round((latest - compLatest) * 10) / 10;
             const rel = diff > 0 ? 'por arriba de' : diff < 0 ? 'por debajo de' : 'igual a';
-            compareLine = `<div class="compare-line">${currentMunicipio}: <b>${formatValue(latest, ind.unit)}</b> —
-                ${Math.abs(diff)}${ind.unit} ${rel} ${currentComparativo} (<b>${formatValue(compLatest, ind.unit)}</b>)</div>`;
+            const compLabel = COMPARATIVO_LABELS[currentComparativo] || currentComparativo;
+            compareLine = `<div class="compare-line">${currentMunicipio}: <b>${formatValue(latest)}</b> —
+                ${Math.abs(diff)}% ${rel} ${compLabel} (<b>${formatValue(compLatest)}</b>)</div>`;
         }
 
         return `
-            <div class="card indicator-card" tabindex="0" role="button" data-indicator="${ind.key}"
-                 aria-label="Ver comportamiento histórico de ${ind.label}">
+            <div class="card indicator-card" tabindex="0" role="button" data-indicator="${key}"
+                 aria-label="Ver comportamiento histórico de ${key}">
                 <div class="card-top">
-                    <h3>${ind.label}</h3>
+                    <h3>${key}</h3>
                     <span class="expand-hint">Ver histórico ↗</span>
                 </div>
-                <div class="desc">${ind.desc}</div>
-                <div class="value">${formatValue(latest, ind.unit)}</div>
-                <div class="variation ${vClass}">${arrow} ${delta === null ? 'Sin dato previo' : Math.abs(delta) + ind.unit + ' vs. trimestre anterior'}</div>
+                <div class="value">${currentMunicipio ? formatValue(latest) : '—'}</div>
+                <div class="variation ${vClass}">${arrow} ${delta === null ? 'Sin dato previo' : Math.abs(delta) + '% vs. trimestre anterior'}</div>
                 ${compareLine}
             </div>
         `;
@@ -261,10 +252,9 @@ function renderCards() {
 // ===== Modal con historial (Chart.js) =====
 
 function openModal(indicatorKey) {
-    const ind = INDICATORS.find(i => i.key === indicatorKey);
     const overlay = document.getElementById('modalOverlay');
-    document.getElementById('modalTitle').textContent = ind.label;
-    document.getElementById('modalDesc').textContent = ind.desc;
+    document.getElementById('modalTitle').textContent = indicatorKey;
+    document.getElementById('modalDesc').textContent = `${currentMunicipio || ''} vs. ${COMPARATIVO_LABELS[currentComparativo] || currentComparativo}`;
 
     const municipioSeries = getSeries(indicatorKey, currentMunicipio);
     const comparativoSeries = getComparativoSeries(indicatorKey);
@@ -279,7 +269,7 @@ function openModal(indicatorKey) {
             labels: periods,
             datasets: [
                 {
-                    label: currentMunicipio,
+                    label: currentMunicipio || 'Municipio',
                     data: municipioSeries ? municipioSeries.values : [],
                     borderColor: CHART_COLORS.municipio,
                     backgroundColor: CHART_COLORS.municipio + '22',
@@ -289,7 +279,7 @@ function openModal(indicatorKey) {
                     borderWidth: 3
                 },
                 {
-                    label: currentComparativo,
+                    label: COMPARATIVO_LABELS[currentComparativo] || currentComparativo,
                     data: comparativoSeries ? comparativoSeries.values : [],
                     borderColor: CHART_COLORS.comparativo,
                     backgroundColor: CHART_COLORS.comparativo + '22',
@@ -306,16 +296,14 @@ function openModal(indicatorKey) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: {
-                    ticks: { callback: (v) => v + ind.unit }
-                }
+                y: { ticks: { callback: (v) => v + '%' } }
             }
         }
     });
 
     document.getElementById('chartLegendCustom').innerHTML = `
-        <span><span class="legend-dot" style="background:${CHART_COLORS.municipio}"></span>${currentMunicipio}</span>
-        <span><span class="legend-dot" style="background:${CHART_COLORS.comparativo}"></span>${currentComparativo}</span>
+        <span><span class="legend-dot" style="background:${CHART_COLORS.municipio}"></span>${currentMunicipio || ''}</span>
+        <span><span class="legend-dot" style="background:${CHART_COLORS.comparativo}"></span>${COMPARATIVO_LABELS[currentComparativo] || currentComparativo}</span>
     `;
 
     overlay.classList.add('open');
@@ -328,18 +316,16 @@ function closeModal() {
 
 // ===== Controles del header =====
 
-function renderHeaderControls() {
-    const select = document.getElementById('municipioSelect');
-    select.innerHTML = MUNICIPIOS.map(m => `<option value="${m}" ${m === currentMunicipio ? 'selected' : ''}>${m}</option>`).join('');
-    select.addEventListener('change', () => {
-        currentMunicipio = select.value;
-        renderAll();
+function wireHeaderControls() {
+    document.getElementById('municipioSelect').addEventListener('change', (e) => {
+        currentMunicipio = e.target.value;
+        renderCards();
+        renderMunicipioChips();
     });
 
-    const compSelect = document.getElementById('comparativoSelect');
-    compSelect.addEventListener('change', () => {
-        currentComparativo = compSelect.value;
-        renderAll();
+    document.getElementById('comparativoSelect').addEventListener('change', (e) => {
+        currentComparativo = e.target.value;
+        renderCards();
     });
 
     document.getElementById('refreshBtn').addEventListener('click', async () => {
@@ -357,15 +343,13 @@ function renderHeaderControls() {
 // ===== Render general =====
 
 function renderAll() {
+    populateHeaderSelects();
     renderContextBar();
     renderMunicipioChips();
     renderCards();
 }
 
 // ===== Manejo de errores inesperados =====
-// Si algo truena en cualquier parte del arranque, mostramos el motivo
-// directamente en la página en vez de dejar el spinner girando para
-// siempre — así se puede diagnosticar sin abrir la consola del navegador.
 function showFatalError(error) {
     console.error('Error inesperado en la app de ENSU:', error);
     const grid = document.getElementById('summaryCards');
@@ -376,10 +360,8 @@ function showFatalError(error) {
                     <span>⛔</span>
                     <span><strong>Algo salió mal cargando la página.</strong>
                     Motivo: <em>${(error && error.message) ? error.message : String(error)}</em>.
-                    Revisa en el navegador (F12 → pestaña "Console" o "Network") si algún archivo
-                    (css/js/assets) da error 404, y confirma que la estructura de carpetas del
-                    repositorio coincide con la del proyecto. Copia ese mensaje y compártemelo si
-                    necesitas ayuda para diagnosticarlo.</span>
+                    Revisa en el navegador (F12 → "Console"/"Network") si algún archivo da 404, y confirma
+                    la estructura de carpetas del repositorio. Comparte ese mensaje si necesitas ayuda.</span>
                 </div>
             </div>`;
     }
@@ -389,7 +371,7 @@ function showFatalError(error) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        renderHeaderControls();
+        wireHeaderControls();
 
         document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
         document.getElementById('modalOverlay').addEventListener('click', (e) => {
