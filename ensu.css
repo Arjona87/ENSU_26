@@ -1,0 +1,267 @@
+/* ============================================================
+   ENSU — JALISCO
+   Estilos específicos de este proyecto (NO tocan design-system.css).
+   Todo lo de aquí usa las variables de color ya definidas en
+   design-system.css para mantener 100% la misma paleta.
+   ============================================================ */
+
+/* ===== Barra de contexto (debajo del header) ===== */
+.context-bar {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 18px 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.context-bar .fuente {
+    font-size: 13px;
+    color: var(--color-dark);
+    opacity: 0.75;
+}
+
+.context-bar .fuente a {
+    color: var(--color-primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.context-bar .fuente a:hover {
+    text-decoration: underline;
+}
+
+.periodo-actual {
+    background: var(--color-light);
+    color: var(--color-primary);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+
+/* ===== Aviso de datos de muestra ===== */
+.data-notice {
+    max-width: 1400px;
+    margin: 16px auto 0;
+    padding: 0 20px;
+}
+
+.data-notice .box {
+    background: #fff8e6;
+    border: 1px solid var(--color-warning);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--color-dark);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.data-notice .box strong {
+    color: var(--color-warning);
+}
+
+/* ===== Selector de municipio ===== */
+.municipio-select-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ===== Tarjetas de indicador (extienden .card) ===== */
+.indicator-card {
+    cursor: pointer;
+    position: relative;
+    outline: none;
+}
+
+.indicator-card:focus-visible {
+    box-shadow: 0 0 0 3px rgba(26, 58, 82, 0.35);
+}
+
+.indicator-card .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.indicator-card .expand-hint {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-primary);
+    opacity: 0.55;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.indicator-card:hover .expand-hint {
+    opacity: 1;
+}
+
+.indicator-card .desc {
+    font-size: 13px;
+    color: var(--color-dark);
+    opacity: 0.75;
+    margin-top: -6px;
+    margin-bottom: 14px;
+}
+
+.indicator-card .compare-line {
+    font-size: 13px;
+    color: var(--color-dark);
+    opacity: 0.85;
+    margin-top: 4px;
+    border-top: 1px solid var(--color-light);
+    padding-top: 10px;
+}
+
+.indicator-card .compare-line b {
+    color: var(--color-primary);
+}
+
+/* ===== Leyenda de municipios (chips) ===== */
+.municipios-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.municipio-chip {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--color-light);
+    color: var(--color-dark);
+    font-weight: 600;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.municipio-chip.active {
+    background: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary);
+}
+
+.municipio-chip:hover:not(.active) {
+    border-color: var(--color-primary);
+}
+
+/* ===== Modal de comportamiento histórico ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 36, 56, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal-box {
+    background: var(--color-white);
+    border-radius: 12px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 30px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 6px;
+}
+
+.modal-header h2 {
+    font-size: 21px;
+    color: var(--color-primary);
+}
+
+.modal-header .modal-desc {
+    font-size: 14px;
+    color: var(--color-dark);
+    opacity: 0.75;
+    margin-bottom: 20px;
+}
+
+.modal-close {
+    background: var(--color-light);
+    border: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--color-dark);
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+
+.modal-close:hover {
+    background: var(--color-border);
+}
+
+.chart-wrap {
+    position: relative;
+    height: 340px;
+    margin-bottom: 10px;
+}
+
+.chart-legend-custom {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--color-dark);
+    margin-top: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-light);
+}
+
+.chart-legend-custom span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .context-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .modal-box {
+        padding: 20px;
+    }
+
+    .chart-wrap {
+        height: 260px;
+    }
+}
