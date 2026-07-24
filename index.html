@@ -176,8 +176,7 @@ main{max-width:1420px;margin:0 auto;padding:26px 24px 64px}
 .reng:hover{background:#EEF3FA}
 .reng[aria-pressed="false"]{opacity:.42}
 .reng .barra{width:7px;height:27px;border-radius:4px}
-.reng .nom{font-size:12.5px;font-weight:600;color:var(--tinta);line-height:1.2}
-.reng .rol{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tenue);font-weight:600}
+.reng .nom{font-size:13px;font-weight:600;color:var(--tinta);line-height:1.25}
 .reng .der{text-align:right;white-space:nowrap}
 .reng .val{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;color:var(--marina-900);line-height:1.15}
 .reng .delta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;line-height:1.35}
@@ -236,10 +235,8 @@ tbody th{
 }
 thead th:first-child{left:0;z-index:3;position:sticky}
 td{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
-tbody tr:hover th,tbody tr:hover td{background:#EEF3FA}
-tr.fila-ref th,tr.fila-ref td{font-weight:600}
-tr.fila-nac th,tr.fila-nac td{background:#F1F3F6}
-tr.fila-est th,tr.fila-est td{background:#F2F7EC}
+tr.fila-nac th{background:#F1F3F6}
+tr.fila-est th{background:#F2F7EC}
 td.col-sel{box-shadow:inset 0 0 0 2px rgba(27,58,140,.35)}
 td.nd{color:#B4BCC8}
 .t-sube{background:rgba(192,57,43,.30)}
@@ -710,7 +707,6 @@ function renderPortada(){
 function renderTira(){
   const cont=document.getElementById('tira'); cont.innerHTML='';
   const I=ind();
-  const rol={nacional:'Referencia nacional', estatal:'Promedio de los 6 municipios', municipio:'Municipio en muestra'};
   lecturas().forEach((l,i)=>{
     if(i===1 || l.tipo==='estatal'){
       const s=document.createElement('div'); s.className='sep-ent'; cont.appendChild(s);
@@ -721,7 +717,7 @@ function renderTira(){
     b.title=(estado.activas.has(l.ent)?'Ocultar':'Mostrar')+' '+l.ent+' en la serie histórica';
     b.innerHTML =
       '<span class="barra" style="background:'+colorEntidad(l.ent)+'"></span>'+
-      '<span><span class="nom">'+l.ent+'</span><br><span class="rol">'+rol[l.tipo]+'</span></span>'+
+      '<span class="nom">'+l.ent+'</span>'+
       '<span class="der"><span class="val">'+(l.act==null?'ND':l.act.toFixed(1)+'%')+'</span>'+
       '<br><span class="delta '+claseDelta(I,l.d)+'">'+flecha(l.d)+' '+(l.d==null?'sin comparativo':pp(l.d))+'</span></span>';
     b.addEventListener('click',()=>{
@@ -902,7 +898,7 @@ function renderHistorico(){
         tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'sin levantamiento':c.parsed.y.toFixed(1)+'%')}}
       },
       scales:{
-        y:{ticks:{callback:v=>v+'%', color:COLOR.tenue, font:{family:'IBM Plex Mono'}}, grid:{color:COLOR.linea}},
+        y:{beginAtZero:true, min:0, max:100, ticks:{callback:v=>v+'%', color:COLOR.tenue, font:{family:'IBM Plex Mono'}}, grid:{color:COLOR.linea}},
         x:{ticks:{color:COLOR.tenue, font:{family:'Inter', size:10}, maxRotation:70, minRotation:70, autoSkip:false}, grid:{display:false}}
       }
     }
