@@ -6,29 +6,58 @@ de resumen, y el conector de Google Sheets — ahora aplicado a datos de la
 **ENSU (Encuesta Nacional de Seguridad Pública Urbana)** del INEGI, con foco
 en Jalisco, sus municipios y su comparación contra el promedio nacional.
 
-## ⚠️ Pendiente antes de que muestre datos reales
+## ⚠️ Por qué no funcionaba en GitHub Pages (ya corregido)
 
-Intenté leer tu Google Sheet
-(`1Az2aE6Mb3RKIwjJjsGBfQYH5dr6RsZjuVVME1CmvSag`, pestaña `gid=1672888382`)
-y la petición regresó **401 (no autorizado)**. Esto casi siempre significa
-que el Sheet todavía no está compartido como **"Cualquier usuario con el
-enlace puede ver"** — el mismo requisito que ya tenía el proyecto anterior.
+La primera versión usaba `fetch()` contra
+`.../export?format=csv`. Ese endpoint de Google **no manda cabeceras
+CORS**, así que cualquier `fetch()` hecho desde un dominio que no sea
+`docs.google.com` — como tu sitio en `github.io` — es bloqueado por el
+navegador con un error de CORS. Esto pasa siempre, sin importar qué tan
+público esté el Sheet; por eso ajustar el permiso de compartir no lo
+arregló.
 
-Mientras tanto, la página funciona completa con **datos de muestra**
-(`js/ensu-sample-data.js`), para que puedas ver y probar toda la
-interacción (tarjetas, comparación, click para ver histórico) sin esperar.
-Vas a ver un aviso amarillo en la página mientras esto pase.
+**Ya lo corregí:** ahora la carga en vivo usa el endpoint de Google
+Visualization (`gviz/tq`) con la técnica JSONP clásica (inyectar un
+`<script>` en vez de usar `fetch`). Un `<script src="...">` no está
+sujeto a CORS — es la misma razón por la que puedes cargar Chart.js desde
+un CDN — así que esto sí funciona en GitHub Pages. El detalle está en
+`js/google-sheets-connector.js`.
 
-**Los únicos números tomados de fuentes reales de INEGI/IIEG** dentro de la
-muestra son los últimos 3 trimestres de "Percepción de inseguridad" para
-Guadalajara, Zapopan, Puerto Vallarta y el Promedio Nacional. El resto de
-los trimestres y el resto de los indicadores son valores generados solo
-para que la interfaz se vea completa — no los cites como dato oficial.
+También agregué:
+- Un **mensaje de error visible en la página** (no solo en consola) si
+  algo vuelve a fallar, con el motivo exacto.
+- Un archivo `.nojekyll` en la raíz, para que GitHub Pages sirva los
+  archivos tal cual, sin pasarlos por Jekyll.
 
-### Para conectar tu Sheet real, necesito confirmar:
-1. **Permiso de acceso**: cambia el Sheet a "Cualquier usuario con el enlace
-   puede ver".
-2. **Estructura de columnas**: `processSheetData()` en
+El requisito de permiso **sigue existiendo**: el Sheet debe estar
+compartido como "Cualquier usuario con el enlace puede ver".
+
+Mientras se confirma que todo carga bien, la página sigue teniendo un
+respaldo de **datos de muestra** (`js/ensu-sample-data.js``) para no
+quedar en blanco. Los únicos números ahí tomados de fuentes reales de
+INEGI/IIEG son los últimos 3 trimestres de "Percepción de inseguridad"
+para Guadalajara, Zapopan, Puerto Vallarta y el Promedio Nacional — el
+resto son valores generados solo para que la interfaz se vea completa.
+
+### Lista de verificación para el despliegue en GitHub Pages
+1. **Estructura de carpetas**: en el repo, `index.html` debe quedar en la
+   raíz (o en `/docs` si configuraste Pages así), con `css/`, `js/` y
+   `assets/` como carpetas hermanas al mismo nivel — no dentro de una
+   subcarpeta extra como `ENSU_26/ensu-jalisco/index.html`.
+2. **Mayúsculas/minúsculas**: GitHub Pages es sensible a mayúsculas
+   (a diferencia de Windows/Mac). `css/design-system.css` debe llamarse
+   exactamente así, no `CSS/Design-System.css`.
+3. **Prueba rápida antes de subir**: desde la carpeta del proyecto,
+   corre `python3 -m http.server 8000` y abre
+   `http://localhost:8000` — si funciona ahí pero no en GitHub Pages, el
+   problema casi siempre es de rutas/mayúsculas al subir.
+4. Si algo vuelve a fallar, ahora deberías ver un aviso en la página con
+   el motivo. Si no aparece nada en absoluto (página en blanco), abre las
+   herramientas de desarrollador del navegador (F12) → pestaña "Console"
+   y "Network", busca líneas en rojo o 404, y compárteme ese texto.
+
+### Para conectar tu Sheet real, sigo necesitando confirmar:
+1. **Estructura de columnas**: `processSheetData()` en
    `js/google-sheets-connector.js` espera por ahora:
 
    ```
@@ -39,8 +68,8 @@ para que la interfaz se vea completa — no los cites como dato oficial.
    inseguridad" + "Zapopan"). Si tu Sheet está armado distinto (por
    ejemplo, una pestaña por indicador, o los municipios como columnas en
    vez de filas), dime cómo está y ajusto esa función — el resto del
-   proyecto (fetch, parseo de CSV, tarjetas, gráfica) no cambia.
-3. **Nombres exactos** de indicadores y municipios en tu Sheet, para que
+   proyecto (carga JSONP, tarjetas, gráfica) no cambia.
+2. **Nombres exactos** de indicadores y municipios en tu Sheet, para que
    coincidan con las claves que usa `js/app.js` (ahora mismo asume los 6
    municipios de la ENSU en Jalisco: Guadalajara, Zapopan, San Pedro
    Tlaquepaque, Tlajomulco de Zúñiga, Tonalá y Puerto Vallarta, más

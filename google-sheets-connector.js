@@ -1,41 +1,101 @@
 /* ============================================================
    CONECTOR DE GOOGLE SHEETS — ENSU Jalisco
    Adaptado del módulo reutilizable del proyecto "Reporte Semanal
-   de Incidencia Delictiva". fetchSheetData() y parseCSV() son
-   100% genéricas y NO se tocaron. Lo único nuevo es
-   processSheetData(), que interpreta las filas/columnas según
-   la estructura de ESTE Sheet.
+   de Incidencia Delictiva". La carga en vivo ya NO usa fetch()
+   (ver nota CORS más abajo) sino una técnica JSONP con <script>.
+   processSheetData() sigue siendo lo único específico de ESTE
+   Sheet, y parseCSV() se conserva como utilidad de referencia.
    ============================================================ */
 
 // ===== 1. CONFIGURACIÓN =====
 const SHEET_ID = '1Az2aE6Mb3RKIwjJjsGBfQYH5dr6RsZjuVVME1CmvSag';
 const SHEET_GID = '1672888382';
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
 
-// IMPORTANTE: para que este fetch funcione (para ti y para cualquier
-// visitante de la página, sin login), el Sheet debe compartirse como
-// "Cualquier usuario con el enlace puede ver". Mientras no se cambie
-// ese permiso, el fetch fallará (401/403) y la página usará los datos
-// de muestra (ver ensu-data-muestra.js) para no quedar en blanco.
+// IMPORTANTE — LECCIÓN APRENDIDA (esto es lo que rompía la página en
+// GitHub Pages): el endpoint clásico ".../export?format=csv" NO manda
+// cabeceras CORS (Access-Control-Allow-Origin), así que un fetch() a ese
+// URL desde CUALQUIER dominio que no sea docs.google.com (ej. tu sitio en
+// github.io) es bloqueado por el navegador con un error de CORS — esto
+// pasa SIEMPRE, sin importar qué tan público esté el Sheet. Por eso daba
+// la impresión de "no funciona" aunque el permiso de compartir ya estaba
+// bien.
+//
+// La solución: en vez de fetch(), cargamos los datos con la técnica
+// JSONP clásica usando el endpoint de Google Visualization
+// (gviz/tq), inyectando un <script> que apunta a Google. Los <script>
+// NO están sujetos a CORS (es la misma razón por la que puedes cargar
+// Chart.js desde un CDN), así que este método sí funciona en cualquier
+// dominio, incluyendo GitHub Pages.
+//
+// El Sheet debe seguir compartido como "Cualquier usuario con el enlace
+// puede ver" — eso no cambia.
 
+function loadSheetViaJSONP(sheetId, gid, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+        const callbackName = '__ensuGvizCallback_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+        const script = document.createElement('script');
+        let settled = false;
 
-// ===== 2. DESCARGAR EL CSV (genérico, no tocar) =====
-async function fetchSheetData() {
-    try {
-        console.log('📥 Descargando datos del Google Sheet de ENSU...');
-        const response = await fetch(CSV_URL);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const csvText = await response.text();
-        console.log('✅ Datos descargados correctamente');
-        return csvText;
-    } catch (error) {
-        console.warn('⚠️ No se pudo descargar el Sheet (¿está compartido como público?):', error.message);
-        return null;
-    }
+        const cleanup = () => {
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+        };
+
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error('Tiempo de espera agotado cargando el Google Sheet (JSONP).'));
+        }, timeoutMs);
+
+        window[callbackName] = (response) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            cleanup();
+            if (!response || response.status === 'error') {
+                reject(new Error('Google respondió con error (¿el Sheet no es público o el gid no existe?).'));
+                return;
+            }
+            resolve(response);
+        };
+
+        script.onerror = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            cleanup();
+            reject(new Error('No se pudo cargar el script de Google Sheets (revisa el SHEET_ID/GID o tu conexión).'));
+        };
+
+        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq` +
+            `?gid=${encodeURIComponent(gid)}&headers=1&tqx=responseHandler:${callbackName}`;
+        script.src = url;
+        document.head.appendChild(script);
+    });
+}
+
+// Convierte la respuesta de Google Visualization (formato
+// {table:{cols:[...], rows:[...]}}) al mismo formato "array de arrays"
+// (rows[fila][columna]) que antes producía parseCSV(), para no tener
+// que tocar processSheetData().
+function gvizResponseToRows(response) {
+    const headers = response.table.cols.map(c => (c.label || c.id || '').trim());
+    const rows = [headers];
+    response.table.rows.forEach(r => {
+        const row = (r.c || []).map(cell => {
+            if (!cell || cell.v === null || cell.v === undefined) return '';
+            return String(cell.v);
+        });
+        rows.push(row);
+    });
+    return rows;
 }
 
 
-// ===== 3. PARSEAR EL CSV (genérico, no tocar) =====
+// ===== 3. PARSEAR CSV (utilidad de referencia) =====
+// Ya NO se usa en la carga en vivo (ver nota CORS arriba), pero se deja
+// aquí por si algún día quieres procesar un CSV pegado/descargado a mano.
 // Respeta comillas dobles, así que celdas como "1,049" o "70.8%" no
 // desalinean la fila aunque tengan comas o formato de miles.
 function parseCSV(csvText) {
@@ -137,11 +197,15 @@ function processSheetData(csvArray) {
 
 
 // ===== 5. CARGA PRINCIPAL =====
-// Devuelve los datos del Sheet si el fetch tuvo éxito, o null si
-// falló (para que quien llame decida usar datos de muestra).
+// Devuelve los datos del Sheet si la carga tuvo éxito, o null si
+// falló (para que quien llame decida usar datos de muestra). Lanza el
+// error hacia arriba con un mensaje entendible para mostrarlo en pantalla.
 async function loadEnsuData() {
-    const csvText = await fetchSheetData();
-    if (!csvText) return null;
-    const csvArray = parseCSV(csvText);
-    return processSheetData(csvArray);
+    const response = await loadSheetViaJSONP(SHEET_ID, SHEET_GID);
+    const rows = gvizResponseToRows(response);
+    const data = processSheetData(rows);
+    if (!data || Object.keys(data).length === 0) {
+        throw new Error('El Sheet respondió pero no se encontraron filas con Indicador/Área reconocibles.');
+    }
+    return data;
 }

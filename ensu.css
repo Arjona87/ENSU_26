@@ -66,6 +66,22 @@
     color: var(--color-warning);
 }
 
+.data-notice .box.box-error {
+    background: #fdecea;
+    border-color: var(--color-secondary);
+}
+
+.data-notice .box.box-error strong {
+    color: var(--color-secondary);
+}
+
+.data-notice .box code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
 /* ===== Selector de municipio ===== */
 .municipio-select-wrap {
     display: flex;

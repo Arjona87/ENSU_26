@@ -65,6 +65,7 @@ const CHART_COLORS = {
 
 let ENSU_DATA = null;
 let USING_SAMPLE_DATA = false;
+let LAST_LOAD_ERROR = null;
 let currentMunicipio = 'Guadalajara';
 let currentComparativo = 'Promedio Nacional'; // o 'AMG (promedio)'
 let activeChart = null;
@@ -123,11 +124,13 @@ function getComparativoSeries(indicatorKey) {
 // ===== Carga de datos =====
 
 async function initData() {
+    LAST_LOAD_ERROR = null;
     let liveData = null;
     try {
         liveData = await loadEnsuData();
     } catch (e) {
         console.warn('Error cargando el Sheet en vivo:', e);
+        LAST_LOAD_ERROR = (e && e.message) ? e.message : String(e);
     }
 
     if (liveData && Object.keys(liveData).length > 0) {
@@ -159,9 +162,11 @@ function renderContextBar() {
         notice.innerHTML = `
             <div class="box">
                 <span>⚠️</span>
-                <span><strong>Mostrando datos de muestra.</strong> No se pudo leer el Google Sheet en vivo
-                (probablemente falta compartirlo como "Cualquier usuario con el enlace puede ver").
-                En cuanto se ajuste el permiso, esta página mostrará los datos reales automáticamente.</span>
+                <span><strong>Mostrando datos de muestra.</strong> No se pudo leer el Google Sheet en vivo.
+                ${LAST_LOAD_ERROR ? `Motivo: <em>${LAST_LOAD_ERROR}</em>.` : ''}
+                Revisa que el Sheet esté compartido como "Cualquier usuario con el enlace puede ver" y que el
+                SHEET_ID/GID en <code>js/google-sheets-connector.js</code> sean correctos, luego presiona
+                "Actualizar datos".</span>
             </div>`;
         notice.style.display = 'block';
     } else {
@@ -340,8 +345,12 @@ function renderHeaderControls() {
     document.getElementById('refreshBtn').addEventListener('click', async () => {
         const grid = document.getElementById('summaryCards');
         grid.innerHTML = `<div class="loading"><div class="spinner"></div>Actualizando datos…</div>`;
-        await initData();
-        renderAll();
+        try {
+            await initData();
+            renderAll();
+        } catch (error) {
+            showFatalError(error);
+        }
     });
 }
 
@@ -353,19 +362,46 @@ function renderAll() {
     renderCards();
 }
 
+// ===== Manejo de errores inesperados =====
+// Si algo truena en cualquier parte del arranque, mostramos el motivo
+// directamente en la página en vez de dejar el spinner girando para
+// siempre — así se puede diagnosticar sin abrir la consola del navegador.
+function showFatalError(error) {
+    console.error('Error inesperado en la app de ENSU:', error);
+    const grid = document.getElementById('summaryCards');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="data-notice" style="grid-column: 1 / -1; padding: 0;">
+                <div class="box box-error">
+                    <span>⛔</span>
+                    <span><strong>Algo salió mal cargando la página.</strong>
+                    Motivo: <em>${(error && error.message) ? error.message : String(error)}</em>.
+                    Revisa en el navegador (F12 → pestaña "Console" o "Network") si algún archivo
+                    (css/js/assets) da error 404, y confirma que la estructura de carpetas del
+                    repositorio coincide con la del proyecto. Copia ese mensaje y compártemelo si
+                    necesitas ayuda para diagnosticarlo.</span>
+                </div>
+            </div>`;
+    }
+}
+
 // ===== Init =====
 
 document.addEventListener('DOMContentLoaded', async () => {
-    renderHeaderControls();
+    try {
+        renderHeaderControls();
 
-    document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'modalOverlay') closeModal();
-    });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeModal();
-    });
+        document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+        document.getElementById('modalOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'modalOverlay') closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
 
-    await initData();
-    renderAll();
+        await initData();
+        renderAll();
+    } catch (error) {
+        showFatalError(error);
+    }
 });
