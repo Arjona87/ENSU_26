@@ -3,73 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ENSU Jalisco — Percepción sobre Seguridad Pública</title>
+<title>ENSU 2026 — Jalisco vs. Nacional</title>
 <link rel="stylesheet" href="css/design-system.css">
-<link rel="stylesheet" href="css/ensu.css">
+<link rel="stylesheet" href="css/ensu-additions.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
 <header>
     <div class="header-content">
         <div class="header-logo-box header-logo-box-left">
-            <img src="assets/logo-cges.png" class="header-logo-img" alt="Coordinación de Seguridad, Gobierno de Jalisco">
-            <img src="assets/logo-fiscalia.png" class="header-logo-img" alt="Fiscalía del Estado de Jalisco">
+            <img src="assets/logo-cges.png" class="header-logo-img" alt="Coordinación de Seguridad — Gobierno de Jalisco">
+            <img src="assets/logo-fiscalia.png" class="header-logo-img" alt="Fiscalía del Estado">
         </div>
         <div class="header-title-center">
-            <h1>ENSU Jalisco — Percepción sobre Seguridad Pública</h1>
+            <h1>ENSU 2026 · Jalisco vs. Nacional</h1>
         </div>
         <div class="header-right">
             <div class="control-group">
-                <label for="municipioSelect">Municipio:</label>
-                <select id="municipioSelect"></select>
+                <label id="last-update">Cargando datos…</label>
             </div>
-            <div class="control-group">
-                <label for="comparativoSelect">Comparar contra:</label>
-                <select id="comparativoSelect"></select>
-            </div>
-            <button id="refreshBtn" class="btn btn-primary">Actualizar datos</button>
+            <button class="btn btn-primary" id="refresh-btn">Actualizar datos</button>
         </div>
     </div>
 </header>
 
-<div class="context-bar" id="contextBar"></div>
-<div class="data-notice" id="dataNotice" style="display:none;"></div>
-
 <main>
-    <section>
-        <h2>Panorama por indicador</h2>
-        <div class="municipios-legend" id="municipiosLegend"></div>
-        <div class="summary-cards" id="summaryCards">
-            <div class="loading"><div class="spinner"></div>Cargando datos de ENSU…</div>
+    <p class="source-note">
+        Encuesta Nacional de Seguridad Pública Urbana (ENSU) — Fuente:
+        <a href="https://www.inegi.org.mx/programas/ensu/" target="_blank" rel="noopener">INEGI</a>.
+        Comparación de Jalisco (municipios y media estatal) contra el promedio nacional. Haz clic en cualquier
+        tarjeta para ver el comportamiento histórico completo del indicador.
+    </p>
+
+    <div class="section-nav" id="section-nav"></div>
+
+    <div id="main-content">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Cargando datos del Google Sheet…</p>
         </div>
-    </section>
+    </div>
 </main>
 
 <footer>
-    <p>Encuesta Nacional de Seguridad Pública Urbana (ENSU) — INEGI</p>
-    <p>Coordinación de Seguridad · Fiscalía del Estado de Jalisco</p>
+    <p>Coordinación de Seguridad · Gobierno de Jalisco &mdash; Fiscalía del Estado</p>
+    <p>Datos: Encuesta Nacional de Seguridad Pública Urbana (ENSU), INEGI</p>
 </footer>
 
-<!-- ===== Modal: comportamiento histórico ===== -->
-<div class="modal-overlay" id="modalOverlay">
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modal-header">
-            <div>
-                <h2 id="modalTitle">Indicador</h2>
-                <div class="modal-desc" id="modalDesc"></div>
-            </div>
-            <button class="modal-close" id="modalCloseBtn" aria-label="Cerrar">✕</button>
-        </div>
+<!-- Modal de histórico -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+        <button class="modal-close" id="modal-close">&times;</button>
+        <div class="modal-section" id="modal-section"></div>
+        <h2 id="modal-title"></h2>
+        <div class="entity-toggles" id="entity-toggles"></div>
         <div class="chart-wrap">
-            <canvas id="historyChart"></canvas>
+            <canvas id="history-chart"></canvas>
         </div>
-        <div class="chart-legend-custom" id="chartLegendCustom"></div>
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="js/google-sheets-connector.js"></script>
-<script src="js/ensu-sample-data.js"></script>
+<script src="js/sheets-connector.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

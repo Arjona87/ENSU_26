@@ -1,389 +1,223 @@
 /* ============================================================
-   APP — ENSU Jalisco
-   ============================================================
-   Los indicadores y los municipios YA NO están escritos a mano: se
-   descubren a partir de lo que regrese processSheetData() (ver
-   google-sheets-connector.js), porque la estructura real del Sheet es
-   "un bloque por indicador" y no sabemos de antemano cuántos
-   indicadores tiene ni si en el futuro agregas más.
+   ENSU 2026 — Jalisco vs. Nacional — app.js
    ============================================================ */
 
-const CHART_COLORS = {
-    municipio: '#1a3a52',
-    comparativo: '#c41e3a'
+// Polaridad de cada indicador: para saber si "sube" es bueno o malo
+// al colorear la variación en las tarjetas.
+const LOWER_IS_BETTER = [
+    'percepción de inseguridad',
+    'consumo de alcohol',
+    'robos o asaltos'
+];
+
+function polarityOf(title) {
+    const t = normalize(title);
+    const lowerBetter = LOWER_IS_BETTER.some(k => t.includes(normalize(k)));
+    return lowerBetter ? 'lower' : 'higher';
+}
+
+// Paleta para las líneas de la gráfica (una por entidad)
+const ENTITY_COLORS = {
+    'Nacional': '#1a3a52',
+    'Media Estatal': '#c41e3a',
+    'Zapopan': '#27ae60',
+    'Guadalajara': '#f39c12',
+    'Tonalá': '#8e44ad',
+    'Tlajomulco': '#16a085',
+    'Tlaquepaque': '#2980b9',
+    'Puerto Vallarta': '#d35400'
 };
 
-const COMPARATIVO_LABELS = {
-    'Nacional': 'Promedio Nacional',
-    'Media Estatal': 'Media Estatal (Jalisco)'
-};
+let ENSU_DATA = null;   // { periods, indicators }
+let activeChart = null; // instancia Chart.js del modal actual
 
-let ENSU_DATA = null;
-let USING_SAMPLE_DATA = false;
-let LAST_LOAD_ERROR = null;
+async function init() {
+    const main = document.getElementById('main-content');
+    const data = await loadEnsuData();
 
-let INDICATOR_KEYS = [];   // ej. ['Percepción de inseguridad en su ciudad', ...]
-let MUNICIPIOS = [];       // áreas que NO son de referencia (Nacional / Media Estatal)
-let currentMunicipio = null;
-let currentComparativo = 'Nacional';
-let activeChart = null;
-
-// ===== Utilidades sobre series =====
-
-function lastTwoRealValues(series) {
-    if (!series) return { latest: null, previous: null, latestPeriod: null };
-    const vals = series.values;
-    let latestIdx = -1;
-    for (let i = vals.length - 1; i >= 0; i--) {
-        if (vals[i] !== null && vals[i] !== undefined) { latestIdx = i; break; }
-    }
-    if (latestIdx === -1) return { latest: null, previous: null, latestPeriod: null };
-    let prevIdx = -1;
-    for (let i = latestIdx - 1; i >= 0; i--) {
-        if (vals[i] !== null && vals[i] !== undefined) { prevIdx = i; break; }
-    }
-    return {
-        latest: vals[latestIdx],
-        previous: prevIdx === -1 ? null : vals[prevIdx],
-        latestPeriod: series.periods[latestIdx]
-    };
-}
-
-function getSeries(indicatorKey, area) {
-    if (!ENSU_DATA || !ENSU_DATA[indicatorKey]) return null;
-    return ENSU_DATA[indicatorKey][area] || null;
-}
-
-function getComparativoSeries(indicatorKey) {
-    return getSeries(indicatorKey, currentComparativo);
-}
-
-// Heurística conservadora: solo coloreamos la variación como
-// "buena"/"mala" cuando el nombre del indicador deja claro qué significa
-// subir o bajar. Si no estamos seguros, se muestra en un tono neutral
-// en vez de arriesgarnos a pintar de rojo/verde algo que signifique lo
-// contrario.
-function inferHigherIsBad(indicatorKey) {
-    const n = normalizeText(indicatorKey);
-    if (n.includes('insegur') || n.includes('victim') || n.includes('delinc')) return true;
-    if (n.includes('confianza') || n.includes('efectiv')) return false;
-    return null; // desconocido -> neutral
-}
-
-// ===== Carga de datos =====
-
-function discoverStructure() {
-    INDICATOR_KEYS = Object.keys(ENSU_DATA || {});
-    const allAreas = new Set();
-    INDICATOR_KEYS.forEach(k => {
-        Object.keys(ENSU_DATA[k]).forEach(area => allAreas.add(area));
-    });
-    MUNICIPIOS = Array.from(allAreas).filter(a => !REFERENCE_AREAS.includes(a));
-
-    if (!currentMunicipio || !MUNICIPIOS.includes(currentMunicipio)) {
-        currentMunicipio = MUNICIPIOS.includes('Guadalajara') ? 'Guadalajara' : (MUNICIPIOS[0] || null);
-    }
-    if (!allAreas.has(currentComparativo)) {
-        currentComparativo = allAreas.has('Nacional') ? 'Nacional' : (REFERENCE_AREAS.find(a => allAreas.has(a)) || currentComparativo);
-    }
-}
-
-async function initData() {
-    LAST_LOAD_ERROR = null;
-    let liveData = null;
-    try {
-        liveData = await loadEnsuData();
-    } catch (e) {
-        console.warn('Error cargando el Sheet en vivo:', e);
-        LAST_LOAD_ERROR = (e && e.message) ? e.message : String(e);
-    }
-
-    if (liveData && Object.keys(liveData).length > 0) {
-        ENSU_DATA = liveData;
-        USING_SAMPLE_DATA = false;
-    } else {
-        ENSU_DATA = buildSampleData();
-        USING_SAMPLE_DATA = true;
-    }
-
-    discoverStructure();
-}
-
-// ===== Render: barra de contexto =====
-
-function renderContextBar() {
-    const bar = document.getElementById('contextBar');
-    const anyIndicator = INDICATOR_KEYS[0];
-    const series = anyIndicator ? getSeries(anyIndicator, currentMunicipio) : null;
-    const { latestPeriod } = lastTwoRealValues(series);
-
-    bar.innerHTML = `
-        <div class="fuente">Fuente: INEGI, Encuesta Nacional de Seguridad Pública Urbana (ENSU) ·
-            <a href="https://www.inegi.org.mx/programas/ensu/" target="_blank" rel="noopener">inegi.org.mx/programas/ensu</a>
-        </div>
-        <div class="periodo-actual">${latestPeriod ? 'Último dato: ' + latestPeriod : ''}</div>
-    `;
-
-    const notice = document.getElementById('dataNotice');
-    if (USING_SAMPLE_DATA) {
-        notice.innerHTML = `
-            <div class="box">
-                <span>⚠️</span>
-                <span><strong>Mostrando datos de muestra (2018-2019, transcritos de tu captura de pantalla).</strong>
-                No se pudo leer el Google Sheet en vivo todavía.
-                ${LAST_LOAD_ERROR ? `Motivo: <em>${LAST_LOAD_ERROR}</em>.` : ''}
-                Revisa que el Sheet esté compartido como "Cualquier usuario con el enlace puede ver", luego presiona
-                "Actualizar datos".</span>
-            </div>`;
-        notice.style.display = 'block';
-    } else {
-        notice.style.display = 'none';
-        notice.innerHTML = '';
-    }
-}
-
-// ===== Render: chips de municipio =====
-
-function renderMunicipioChips() {
-    const wrap = document.getElementById('municipiosLegend');
-    wrap.innerHTML = MUNICIPIOS.map(m => `
-        <button class="municipio-chip ${m === currentMunicipio ? 'active' : ''}" data-municipio="${m}">
-            ${m}
-        </button>
-    `).join('');
-
-    wrap.querySelectorAll('.municipio-chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-            currentMunicipio = btn.dataset.municipio;
-            const select = document.getElementById('municipioSelect');
-            if (select) select.value = currentMunicipio;
-            renderCards();
-            renderMunicipioChips();
-        });
-    });
-}
-
-// ===== Render: selects del header (poblados una vez que hay datos) =====
-
-function populateHeaderSelects() {
-    const municipioSelect = document.getElementById('municipioSelect');
-    municipioSelect.innerHTML = MUNICIPIOS.map(m =>
-        `<option value="${m}" ${m === currentMunicipio ? 'selected' : ''}>${m}</option>`
-    ).join('');
-
-    const compSelect = document.getElementById('comparativoSelect');
-    compSelect.innerHTML = REFERENCE_AREAS
-        .filter(a => INDICATOR_KEYS.some(k => getSeries(k, a)))
-        .map(a => `<option value="${a}" ${a === currentComparativo ? 'selected' : ''}>${COMPARATIVO_LABELS[a] || a}</option>`)
-        .join('');
-}
-
-// ===== Render: tarjetas de indicadores =====
-
-function formatValue(v) {
-    if (v === null || v === undefined) return '—';
-    return `${v}%`;
-}
-
-function variationClass(delta, higherIsBad) {
-    if (delta === null || delta === undefined || Math.abs(delta) < 0.05) return 'neutral';
-    if (higherIsBad === null) return 'neutral';
-    const worse = higherIsBad ? delta > 0 : delta < 0;
-    return worse ? 'negative' : 'positive';
-}
-
-function variationArrow(delta) {
-    if (delta === null || delta === undefined || Math.abs(delta) < 0.05) return '→';
-    return delta > 0 ? '▲' : '▼';
-}
-
-function renderCards() {
-    const grid = document.getElementById('summaryCards');
-
-    if (INDICATOR_KEYS.length === 0) {
-        grid.innerHTML = `<div class="loading">No se encontraron indicadores reconocibles en el Sheet.</div>`;
+    if (!data || !data.indicators.length) {
+        main.innerHTML = `
+            <section>
+                <div class="loading">
+                    <p>⚠️ No se pudieron cargar los datos del Google Sheet.</p>
+                    <p style="font-size:13px; opacity:0.7; margin-top:8px;">
+                        Verifica que la hoja tenga permiso "Cualquier usuario con el enlace puede ver".
+                    </p>
+                </div>
+            </section>`;
         return;
     }
 
-    grid.innerHTML = INDICATOR_KEYS.map(key => {
-        const higherIsBad = inferHigherIsBad(key);
-        const series = getSeries(key, currentMunicipio);
-        const { latest, previous } = lastTwoRealValues(series);
-        const delta = (latest !== null && previous !== null) ? Math.round((latest - previous) * 10) / 10 : null;
-        const vClass = variationClass(delta, higherIsBad);
-        const arrow = variationArrow(delta);
+    ENSU_DATA = data;
+    renderNav(data.indicators);
+    renderSections(data.indicators);
+    document.getElementById('last-update').textContent =
+        `Último periodo disponible: ${data.periods[data.periods.length - 1]}`;
+}
 
-        const compSeries = getComparativoSeries(key);
-        const { latest: compLatest } = lastTwoRealValues(compSeries);
-        let compareLine = '';
-        if (latest !== null && compLatest !== null && currentMunicipio) {
-            const diff = Math.round((latest - compLatest) * 10) / 10;
-            const rel = diff > 0 ? 'por arriba de' : diff < 0 ? 'por debajo de' : 'igual a';
-            const compLabel = COMPARATIVO_LABELS[currentComparativo] || currentComparativo;
-            compareLine = `<div class="compare-line">${currentMunicipio}: <b>${formatValue(latest)}</b> —
-                ${Math.abs(diff)}% ${rel} ${compLabel} (<b>${formatValue(compLatest)}</b>)</div>`;
-        }
+function renderNav(indicators) {
+    const nav = document.getElementById('section-nav');
+    const sections = [...new Set(indicators.map(i => i.section))];
+    nav.innerHTML = sections.map(s =>
+        `<button data-target="sec-${slug(s)}">${s}</button>`
+    ).join('');
 
-        return `
-            <div class="card indicator-card" tabindex="0" role="button" data-indicator="${key}"
-                 aria-label="Ver comportamiento histórico de ${key}">
-                <div class="card-top">
-                    <h3>${key}</h3>
-                    <span class="expand-hint">Ver histórico ↗</span>
-                </div>
-                <div class="value">${currentMunicipio ? formatValue(latest) : '—'}</div>
-                <div class="variation ${vClass}">${arrow} ${delta === null ? 'Sin dato previo' : Math.abs(delta) + '% vs. trimestre anterior'}</div>
-                ${compareLine}
-            </div>
-        `;
-    }).join('');
-
-    grid.querySelectorAll('.indicator-card').forEach(card => {
-        card.addEventListener('click', () => openModal(card.dataset.indicator));
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openModal(card.dataset.indicator);
-            }
+    nav.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById(btn.dataset.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     });
 }
 
-// ===== Modal con historial (Chart.js) =====
+function slug(str) {
+    return normalize(str).replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
 
-function openModal(indicatorKey) {
-    const overlay = document.getElementById('modalOverlay');
-    document.getElementById('modalTitle').textContent = indicatorKey;
-    document.getElementById('modalDesc').textContent = `${currentMunicipio || ''} vs. ${COMPARATIVO_LABELS[currentComparativo] || currentComparativo}`;
+function renderSections(indicators) {
+    const main = document.getElementById('main-content');
+    main.innerHTML = indicators.map((ind, idx) => {
+        const periods = ENSU_DATA.periods;
+        const lastIdx = lastDataIndex(ind.entities['Nacional'] || []);
+        const prevIdx = lastIdx > 0 ? lastIdx - 1 : -1;
 
-    const municipioSeries = getSeries(indicatorKey, currentMunicipio);
-    const comparativoSeries = getComparativoSeries(indicatorKey);
-    const periods = (municipioSeries && municipioSeries.periods) || (comparativoSeries && comparativoSeries.periods) || [];
+        const cardsHtml = ENTITY_ORDER.map(entity => {
+            const series = ind.entities[entity];
+            if (!series) return '';
+            return indicatorCardHtml(entity, series, lastIdx, prevIdx, ind, idx);
+        }).join('');
 
-    const ctx = document.getElementById('historyChart').getContext('2d');
+        return `
+        <section id="sec-${slug(ind.section)}">
+            <h2>${ind.title}</h2>
+            <p class="source-note">Comparación Jalisco (municipios y media estatal) vs. Nacional · último dato: ${periods[lastIdx] ?? '—'}</p>
+            <div class="summary-cards">${cardsHtml}</div>
+        </section>`;
+    }).join('');
+
+    main.querySelectorAll('.indicator-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const indIdx = parseInt(card.dataset.indIdx, 10);
+            const entity = card.dataset.entity;
+            openModal(ENSU_DATA.indicators[indIdx], entity);
+        });
+    });
+}
+
+function indicatorCardHtml(entity, series, lastIdx, prevIdx, indicator, indIdx) {
+    const last = series[lastIdx];
+    const prev = prevIdx >= 0 ? series[prevIdx] : null;
+    const hasDelta = last !== null && prev !== null;
+    const delta = hasDelta ? (last - prev) : null;
+
+    let variationClass = 'neutral';
+    let arrow = '→';
+    if (hasDelta && Math.abs(delta) >= 0.05) {
+        const polarity = polarityOf(indicator.title);
+        const improved = polarity === 'lower' ? delta < 0 : delta > 0;
+        variationClass = improved ? 'positive' : 'negative';
+        arrow = delta > 0 ? '▲' : '▼';
+    }
+
+    const valueDisplay = last !== null ? `${last.toFixed(1)}%` : 'N/D';
+    const deltaDisplay = hasDelta ? `${arrow} ${Math.abs(delta).toFixed(1)} pts` : 'sin dato previo';
+
+    return `
+    <div class="card indicator-card" data-ind-idx="${indIdx}" data-entity="${entity}">
+        <h3>${entity}</h3>
+        <div class="value">${valueDisplay}</div>
+        <div class="variation ${variationClass}">${deltaDisplay} vs. periodo anterior</div>
+    </div>`;
+}
+
+// ===== MODAL + GRÁFICA =====
+function openModal(indicator, focusEntity) {
+    const overlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-section').textContent = indicator.section;
+    document.getElementById('modal-title').textContent = indicator.title;
+
+    const entities = Object.keys(indicator.entities);
+    const chips = document.getElementById('entity-toggles');
+    chips.innerHTML = entities.map(e => {
+        const color = ENTITY_COLORS[e] || '#7f8c8d';
+        const active = (e === focusEntity || e === 'Nacional') ? 'active' : '';
+        return `<div class="entity-chip ${active}" data-entity="${e}" style="color:${color}">
+                    <span class="dot"></span>${e}
+                </div>`;
+    }).join('');
+
+    chips.querySelectorAll('.entity-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('active');
+            updateChart(indicator);
+        });
+    });
+
+    overlay.classList.add('open');
+    renderChart(indicator);
+}
+
+function activeEntities() {
+    return [...document.querySelectorAll('.entity-chip.active')].map(c => c.dataset.entity);
+}
+
+function renderChart(indicator) {
+    const ctx = document.getElementById('history-chart').getContext('2d');
     if (activeChart) activeChart.destroy();
+
+    const labels = ENSU_DATA.periods;
+    const datasets = activeEntities().map(entity => {
+        const color = ENTITY_COLORS[entity] || '#7f8c8d';
+        return {
+            label: entity,
+            data: indicator.entities[entity],
+            borderColor: color,
+            backgroundColor: color,
+            spanGaps: false,
+            tension: 0.25,
+            pointRadius: 2,
+            borderWidth: entity === 'Nacional' || entity === 'Media Estatal' ? 3 : 2
+        };
+    });
 
     activeChart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: periods,
-            datasets: [
-                {
-                    label: currentMunicipio || 'Municipio',
-                    data: municipioSeries ? municipioSeries.values : [],
-                    borderColor: CHART_COLORS.municipio,
-                    backgroundColor: CHART_COLORS.municipio + '22',
-                    tension: 0.3,
-                    spanGaps: true,
-                    pointRadius: 4,
-                    borderWidth: 3
-                },
-                {
-                    label: COMPARATIVO_LABELS[currentComparativo] || currentComparativo,
-                    data: comparativoSeries ? comparativoSeries.values : [],
-                    borderColor: CHART_COLORS.comparativo,
-                    backgroundColor: CHART_COLORS.comparativo + '22',
-                    tension: 0.3,
-                    spanGaps: true,
-                    pointRadius: 4,
-                    borderWidth: 3,
-                    borderDash: [6, 4]
-                }
-            ]
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => `${item.dataset.label}: ${item.formattedValue}%`
+                    }
+                }
+            },
             scales: {
-                y: { ticks: { callback: (v) => v + '%' } }
+                y: { ticks: { callback: (v) => `${v}%` } },
+                x: { ticks: { maxRotation: 60, minRotation: 60 } }
             }
         }
     });
+}
 
-    document.getElementById('chartLegendCustom').innerHTML = `
-        <span><span class="legend-dot" style="background:${CHART_COLORS.municipio}"></span>${currentMunicipio || ''}</span>
-        <span><span class="legend-dot" style="background:${CHART_COLORS.comparativo}"></span>${COMPARATIVO_LABELS[currentComparativo] || currentComparativo}</span>
-    `;
-
-    overlay.classList.add('open');
-    document.getElementById('modalCloseBtn').focus();
+function updateChart(indicator) {
+    renderChart(indicator);
 }
 
 function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('modal-overlay').classList.remove('open');
+    if (activeChart) { activeChart.destroy(); activeChart = null; }
 }
 
-// ===== Controles del header =====
-
-function wireHeaderControls() {
-    document.getElementById('municipioSelect').addEventListener('change', (e) => {
-        currentMunicipio = e.target.value;
-        renderCards();
-        renderMunicipioChips();
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'modal-overlay') closeModal();
     });
-
-    document.getElementById('comparativoSelect').addEventListener('change', (e) => {
-        currentComparativo = e.target.value;
-        renderCards();
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+        location.reload();
     });
-
-    document.getElementById('refreshBtn').addEventListener('click', async () => {
-        const grid = document.getElementById('summaryCards');
-        grid.innerHTML = `<div class="loading"><div class="spinner"></div>Actualizando datos…</div>`;
-        try {
-            await initData();
-            renderAll();
-        } catch (error) {
-            showFatalError(error);
-        }
-    });
-}
-
-// ===== Render general =====
-
-function renderAll() {
-    populateHeaderSelects();
-    renderContextBar();
-    renderMunicipioChips();
-    renderCards();
-}
-
-// ===== Manejo de errores inesperados =====
-function showFatalError(error) {
-    console.error('Error inesperado en la app de ENSU:', error);
-    const grid = document.getElementById('summaryCards');
-    if (grid) {
-        grid.innerHTML = `
-            <div class="data-notice" style="grid-column: 1 / -1; padding: 0;">
-                <div class="box box-error">
-                    <span>⛔</span>
-                    <span><strong>Algo salió mal cargando la página.</strong>
-                    Motivo: <em>${(error && error.message) ? error.message : String(error)}</em>.
-                    Revisa en el navegador (F12 → "Console"/"Network") si algún archivo da 404, y confirma
-                    la estructura de carpetas del repositorio. Comparte ese mensaje si necesitas ayuda.</span>
-                </div>
-            </div>`;
-    }
-}
-
-// ===== Init =====
-
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        wireHeaderControls();
-
-        document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
-        document.getElementById('modalOverlay').addEventListener('click', (e) => {
-            if (e.target.id === 'modalOverlay') closeModal();
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
-        });
-
-        await initData();
-        renderAll();
-    } catch (error) {
-        showFatalError(error);
-    }
 });
