@@ -130,11 +130,11 @@ a{color:var(--marina)}
 .menu-activo>.pestana-menu::after{content:none}
 
 .menu-lista{
-  position:absolute;top:calc(100% + 6px);left:0;min-width:290px;z-index:80;
+  position:fixed;top:0;left:0;min-width:290px;z-index:200;
   background:#fff;border:1px solid var(--linea);border-radius:10px;
   box-shadow:0 12px 30px rgba(14,27,46,.16);padding:6px;
-  opacity:0;visibility:hidden;transform:translateY(-6px);transition:all .16s ease;
-  max-height:min(70vh,440px);overflow-y:auto;
+  opacity:0;visibility:hidden;transform:translateY(-6px);transition:opacity .16s ease,transform .16s ease;
+  max-height:min(78vh,520px);overflow-y:auto;
 }
 .menu.abierto .menu-lista{opacity:1;visibility:visible;transform:translateY(0)}
 .menu-op{
@@ -821,13 +821,39 @@ function construirPestanas(){
       e.stopPropagation();
       const abierto=wrap.classList.contains('abierto');
       cerrarMenus();
-      if(!abierto){ wrap.classList.add('abierto'); btn.setAttribute('aria-expanded','true'); }
+      if(!abierto){
+        wrap.classList.add('abierto');
+        btn.setAttribute('aria-expanded','true');
+        posicionarLista(btn, lista);
+      }
     });
 
     wrap.appendChild(btn); wrap.appendChild(lista);
     cont.appendChild(wrap);
   });
 }
+
+/* Coloca la lista (position:fixed) justo debajo de su botón, alineada al
+   viewport para que no quede recortada por el overflow de la barra. */
+function posicionarLista(btn, lista){
+  const r=btn.getBoundingClientRect();
+  const margen=8;
+  const ancho=Math.max(lista.offsetWidth||290, r.width);
+  let izq=r.left;
+  if(izq+ancho > window.innerWidth-margen) izq=Math.max(margen, window.innerWidth-ancho-margen);
+  lista.style.left=izq+'px';
+  lista.style.top=(r.bottom+6)+'px';
+}
+
+function reposicionarMenuAbierto(){
+  const wrap=document.querySelector('.menu.abierto');
+  if(!wrap) return;
+  const btn=wrap.querySelector('.pestana-menu');
+  const lista=wrap.querySelector('.menu-lista');
+  if(btn&&lista) posicionarLista(btn,lista);
+}
+window.addEventListener('resize',reposicionarMenuAbierto);
+window.addEventListener('scroll',reposicionarMenuAbierto,true);
 
 function cerrarMenus(){
   document.querySelectorAll('.menu.abierto').forEach(m=>{
