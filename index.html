@@ -377,6 +377,8 @@ footer p{margin:4px 0}
 .control{ top:var(--nivel1-h); }
 
 .vista[hidden]{ display:none !important; }
+.acc-grupo{display:flex;gap:10px}
+.acc-grupo[hidden]{display:none !important}
 
 /* Andamio de la vista ENVIPE, provisional hasta T2 */
 .andamio{
@@ -505,11 +507,11 @@ footer p{margin:4px 0}
       </div>
     </div>
     <div class="marca-acc">
-      <div id="accENSU" style="display:flex;gap:10px">
+      <div id="accENSU" class="acc-grupo">
         <button class="btn btn-fantasma" id="btnActualizar" type="button">&#8635; Actualizar datos</button>
         <button class="btn btn-primario" id="btnDescargar" type="button">&#8595; Descargar imagen</button>
       </div>
-      <div id="accENVIPE" style="display:flex;gap:10px" hidden>
+      <div id="accENVIPE" class="acc-grupo" hidden>
         <button class="btn btn-fantasma" id="btnActualizarEV" type="button">&#8635; Actualizar datos</button>
         <button class="btn btn-primario" id="btnDescargarEV" type="button">&#8595; Descargar imagen</button>
       </div>
@@ -731,6 +733,7 @@ footer p{margin:4px 0}
         <span><i class="ev-punto" style="background:#8E9AA8"></i>Nacional</span>
       </div>
       <div class="lienzo" id="evCajaBarras"><canvas id="evBarras"></canvas></div>
+      <p class="pista" id="evNotaBarras"></p>
     </section>
 
     <section class="panel">
@@ -748,7 +751,7 @@ footer p{margin:4px 0}
     <div class="panel-cab">
       <div class="eyebrow">Síntesis</div>
       <h2>Indicadores de contexto</h2>
-      <p class="sub">Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.</p>
+      <p class="sub" id="evSubTarjetas">Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.</p>
     </div>
     <div class="tarjetas" id="evTarjetas"></div>
   </section>
@@ -761,6 +764,7 @@ footer p{margin:4px 0}
     </div>
     <div class="ev-checks" id="evChecks" role="group" aria-label="Indicadores en la serie histórica"></div>
     <div class="lienzo h-alta"><canvas id="evHistorico"></canvas></div>
+    <p class="pista" id="evNotaLinea"></p>
   </section>
 
   <section class="panel">
@@ -1821,18 +1825,80 @@ function leerCSV(txt){
   return filas;
 }
 
-/* Tolerante a separador de miles, espacios finos y signo de porcentaje. */
-function aNumero(v){
+/* Lector de numeros consciente de la unidad.
+   En tasas y absolutos la coma SIEMPRE separa millares. Si la hoja perdio los
+   ceros finales del grupo al pegarse (28,2 en lugar de 28,200) se restituyen.
+   En porcentajes la coma solo puede ser separador decimal. */
+function aNumero(v, uni){
   if (v === null || v === undefined) return null;
   if (typeof v === 'number') return isFinite(v) ? v : null;
   var s = String(v).replace(/\u00A0|\u202F|\s/g, '').replace(/%/g, '').trim();
   if (s === '' || s === '-' || /^N\/?A$/i.test(s)) return null;
-  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
-  else if (/^-?\d+,\d+$/.test(s) && s.indexOf('.') === -1) s = s.replace(',', '.');
-  else s = s.replace(/,/g, '');
+
+  if (uni === 'porcentaje'){
+    if (/^-?\d+,\d+$/.test(s) && s.indexOf('.') === -1) s = s.replace(',', '.');
+    else s = s.replace(/,/g, '');
+  } else if (s.indexOf(',') !== -1){
+    var neg = s.charAt(0) === '-';
+    var partes = s.replace(/^-/, '').split(',');
+    var ent = partes[0];
+    for (var i = 1; i < partes.length; i++) ent += (partes[i] + '000').slice(0, 3);
+    s = (neg ? '-' : '') + ent;
+  }
   var n = parseFloat(s);
   return isFinite(n) ? n : null;
 }
+
+/* Etiqueta breve: retira el andamiaje repetido del nombre largo. */
+function corta(txt){
+  var x = String(txt || '')
+    .replace(/^Tasa de\s+/i, '')
+    .replace(/\s*por cada 100\s?000 habitantes(\s+de 18 a\u00F1os y m\u00E1s)?/i, '')
+    .replace(/^Principal problema percibido:\s*/i, '')
+    .replace(/^Conducta delictiva o antisocial atestiguada:\s*/i, '')
+    .replace(/^Confianza \(mucha \+ algo\) en:\s*/i, '')
+    .replace(/^Percepci\u00F3n de corrupci\u00F3n en:\s*/i, '')
+    .replace(/^Conocimiento de acciones de gobierno:\s*/i, '')
+    .replace(/^Percepci\u00F3n de inseguridad en\s+/i, 'Inseguridad en ')
+    .replace(/^Porcentaje de\s+/i, '')
+    .replace(/\s*\(absolutos\)/i, '')
+    .replace(/\s*\u2014\s*/, ' \u00B7 ')
+    .trim();
+  if (!x) x = String(txt || '');
+  return x.charAt(0).toUpperCase() + x.slice(1);
+}
+
+var CORTO_BLOQUE = {
+  'Victimizaci\u00F3n e incidencia':'Victimizaci\u00F3n',
+  'Cifra negra y denuncia':'Cifra negra',
+  'Percepci\u00F3n sobre la seguridad p\u00FAblica':'Percepci\u00F3n',
+  'Confianza en autoridades':'Confianza',
+  'Percepci\u00F3n de corrupci\u00F3n en autoridades':'Corrupci\u00F3n',
+  'Conocimiento de acciones de gobierno':'Acciones de gobierno'
+};
+
+/* Etiquetas de dato sobre las barras, siempre visibles. Sin dependencias. */
+var etiquetasBarra = {
+  id: 'etiquetasBarra',
+  afterDatasetsDraw: function(chart, args, opts){
+    var ctx = chart.ctx, uni = (opts && opts.unidad) || 'porcentaje';
+    ctx.save();
+    ctx.font = '600 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    chart.data.datasets.forEach(function(ds, di){
+      var meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach(function(el, i){
+        var v = ds.data[i];
+        if (v === null || v === undefined) return;
+        ctx.fillStyle = ds.backgroundColor;
+        ctx.fillText(fmt(v, uni), el.x + 6, el.y);
+      });
+    });
+    ctx.restore();
+  }
+};
 
 function fmt(v, unidad){
   if (v === null || v === undefined) return '—';
@@ -1877,7 +1943,7 @@ function normalizar(filas){
     var id = String(f[0]).trim();
     if (!/^[A-Z][A-Z0-9_]+$/.test(id)) continue;          /* descarta pies de nota */
 
-    var cve = aNumero(f[5]);
+    var cve = aNumero(f[5], 'absoluto');
     var ambito = (cve === 0) ? 'NAC' : (cve === 14 ? 'JAL' : null);
     if (!ambito){
       var ent = String(f[6] || '').trim().toLowerCase();
@@ -1885,12 +1951,13 @@ function normalizar(filas){
     }
     if (!ambito) continue;
 
+    var uni = String(f[3] || '').trim() || 'porcentaje';
     if (!mapa[id]){
       mapa[id] = {
         id: id,
         bloque: String(f[1] || '').trim(),
         nombre: String(f[2] || '').trim(),
-        unidad: String(f[3] || '').trim() || 'porcentaje',
+        unidad: uni,
         dir: String(f[4] || 'neutro').trim(),
         ref: String(f[19] || '').trim(),
         nota: '',
@@ -1900,7 +1967,7 @@ function normalizar(filas){
     }
     var reg = mapa[id];
     for (var k = 0; k < EDICIONES.length; k++){
-      var val = aNumero(f[7 + k]);
+      var val = aNumero(f[7 + k], uni);
       if (val !== null) reg[ambito][EDICIONES[k]] = val;
     }
     var nt = String(f[20] || '').trim();
@@ -1988,7 +2055,8 @@ function preparar(){
 
   $('pestanasEV').innerHTML = BLOQUES.map(function(b){
     return '<button class="pestana" role="tab" type="button" data-bloque="' + esc(b) + '" ' +
-           'aria-selected="' + (b === bloqueSel) + '">' + esc(b) + '</button>';
+           'title="' + esc(b) + '" aria-selected="' + (b === bloqueSel) + '">' +
+           esc(CORTO_BLOQUE[b] || b) + '</button>';
   }).join('');
 
   $('evBloquesFicha').innerHTML = BLOQUES.map(function(b){
@@ -2046,10 +2114,22 @@ function pintarBarras(regs, ed){
   var uni = Object.keys(cuenta).sort(function(a,b){ return cuenta[b]-cuenta[a]; })[0] || 'porcentaje';
   vis = vis.filter(function(r){ return r.unidad === uni; });
 
-  var alto = Math.max(300, vis.length * 30 + 70);
+  var fuera = regs.length - vis.length;
+  $('evNotaBarras').textContent = fuera > 0
+    ? 'Se grafican los ' + vis.length + ' indicadores expresados en ' + nombreUnidad(uni) +
+      '. Los ' + fuera + ' restantes usan otra unidad y no comparten escala: aparécen en la serie histórica y en la tabla.'
+    : 'Los ' + vis.length + ' indicadores del bloque se expresan en ' + nombreUnidad(uni) + '.';
+
+  var alto = Math.max(300, vis.length * 34 + 78);
   $('evCajaBarras').style.height = alto + 'px';
 
-  var etiquetas = vis.map(function(r){ return cortar(r.nombre); });
+  var tope = 0;
+  vis.forEach(function(r){
+    if (r.JAL[ed] !== undefined) tope = Math.max(tope, r.JAL[ed]);
+    if (r.NAC[ed] !== undefined) tope = Math.max(tope, r.NAC[ed]);
+  });
+
+  var etiquetas = vis.map(function(r){ return cortar(corta(r.nombre), 38); });
   var datos = [
     { label:'Jalisco',  data: vis.map(function(r){ return r.JAL[ed] !== undefined ? r.JAL[ed] : null; }),
       backgroundColor: COLOR_JAL, borderRadius: 3, barPercentage:.82, categoryPercentage:.74 },
@@ -2061,16 +2141,18 @@ function pintarBarras(regs, ed){
   gBarras = new Chart($('evBarras'), {
     type:'bar',
     data:{ labels: etiquetas, datasets: datos },
+    plugins:[etiquetasBarra],
     options:{
       indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      layout:{ padding:{ right:14 } },
+      layout:{ padding:{ right:18 } },
       plugins:{
         legend:{ display:false },
+        etiquetasBarra:{ unidad: uni },
         tooltip:{ callbacks:{ label:function(c){
           return c.dataset.label + ': ' + fmt(c.parsed.x, uni); } } }
       },
       scales:{
-        x:{ beginAtZero:true, grid:{ color:'#EDF0F5' },
+        x:{ beginAtZero:true, suggestedMax: tope * 1.18, grid:{ color:'#EDF0F5' },
             ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, uni); } } },
         y:{ grid:{ display:false }, ticks:{ font:{ size:11 }, autoSkip:false } }
       }
@@ -2078,11 +2160,18 @@ function pintarBarras(regs, ed){
   });
 }
 
-function cortar(s){
+function cortar(s, max){
+  max = max || 46;
   s = String(s);
-  if (s.length <= 46) return s;
-  var corte = s.lastIndexOf(' ', 46);
-  return s.slice(0, corte > 20 ? corte : 46) + '…';
+  if (s.length <= max) return s;
+  var corte = s.lastIndexOf(' ', max);
+  return s.slice(0, corte > max * 0.45 ? corte : max) + '…';
+}
+function nombreUnidad(u){
+  if (u === 'porcentaje') return 'porcentaje';
+  if (u === 'tasa_100k') return 'tasa por cada 100 000 habitantes';
+  if (u === 'absoluto')  return 'valores absolutos';
+  return u;
 }
 
 /* --- lista con valor, nacional y cambio --- */
@@ -2094,7 +2183,7 @@ function pintarLista(regs, ed){
     var chip = r.nota
       ? '<span class="ev-chip" title="' + esc(r.nota) + '">verificar</span>' : '';
     return '<div class="ev-fila">' +
-      '<div class="ev-nom">' + esc(cortar(r.nombre)) + chip +
+      '<div class="ev-nom">' + esc(cortar(corta(r.nombre), 56)) + chip +
         '<small>' + (pe ? 'vs ' + pe : 'sin edición previa') + '</small></div>' +
       '<div class="ev-val">' + (vj !== undefined ? fmt(vj, r.unidad) : '—') + '</div>' +
       '<div class="ev-nac">nac ' + (vn !== undefined ? fmt(vn, r.unidad) : '—') + '</div>' +
@@ -2116,12 +2205,18 @@ function pintarTarjetas(regs, ed){
   });
   con.sort(function(a,b){ return b.rel - a.rel; });
 
+  var sinMovimiento = con.length && con.every(function(o){ return o.d === 0; });
+  $('evSubTarjetas').textContent = sinMovimiento
+    ? 'Ningún indicador del bloque cambió respecto de la edición anterior: en la base actual la edición '
+      + edicionSel + ' replica los valores de ' + (edicionSel - 1) + '. Se muestran los cuatro primeros del bloque.'
+    : 'Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.';
+
   $('evTarjetas').innerHTML = con.slice(0,4).map(function(o){
     var cl = claseDif(o.d, o.r.dir);
-    var rel = (o.r.unidad !== 'porcentaje' && o.r.JAL[o.pe])
+    var rel = (o.d !== 0 && o.r.unidad !== 'porcentaje' && o.r.JAL[o.pe])
       ? ' (' + (o.d>0?'+':'−') + Math.abs(o.d / o.r.JAL[o.pe] * 100).toFixed(1) + '%)' : '';
     return '<div class="tarjeta">' +
-      '<h3>' + esc(cortar(o.r.nombre)) + '</h3>' +
+      '<h3>' + esc(cortar(corta(o.r.nombre), 44)) + '</h3>' +
       '<div class="grande">' + fmt(o.v, o.r.unidad) + '</div>' +
       '<div class="pie">Jalisco. Cambio frente a ' + o.pe + ': ' +
         '<b class="' + cl + '">' + fmtDif(o.d, o.r.unidad) + rel + '</b>.' +
@@ -2132,12 +2227,16 @@ function pintarTarjetas(regs, ed){
 /* --- selector de indicadores para la linea --- */
 function pintarChecks(regs){
   if (!serieSel[bloqueSel]){
-    serieSel[bloqueSel] = regs.slice(0, Math.min(4, regs.length)).map(function(r){ return r.id; });
+    var cuenta = {};
+    regs.forEach(function(r){ cuenta[r.unidad] = (cuenta[r.unidad] || 0) + 1; });
+    var dom = Object.keys(cuenta).sort(function(a,b){ return cuenta[b]-cuenta[a]; })[0];
+    serieSel[bloqueSel] = regs.filter(function(r){ return r.unidad === dom; })
+                              .slice(0, 4).map(function(r){ return r.id; });
   }
   var sel = serieSel[bloqueSel];
   $('evChecks').innerHTML = regs.map(function(r){
     return '<button class="ev-check" type="button" data-id="' + esc(r.id) + '" ' +
-      'aria-pressed="' + (sel.indexOf(r.id) !== -1) + '">' + esc(cortar(r.nombre)) + '</button>';
+      'aria-pressed="' + (sel.indexOf(r.id) !== -1) + '">' + esc(cortar(corta(r.nombre), 38)) + '</button>';
   }).join('');
 }
 
@@ -2147,24 +2246,52 @@ function pintarHistorico(regs){
   var elegidos = regs.filter(function(r){ return sel.indexOf(r.id) !== -1; });
   var paleta = ['#1B3A8C','#F07C1E','#0A3F4E','#6FA83A','#9B2C7F','#C0392B'];
 
+  /* Nunca se mezclan unidades en un mismo eje: la primera va a la izquierda,
+     la segunda a la derecha, y una eventual tercera se excluye con aviso. */
+  var unidades = [];
+  elegidos.forEach(function(r){
+    if (unidades.indexOf(r.unidad) === -1) unidades.push(r.unidad);
+  });
+  var ejes = {};
+  unidades.slice(0, 2).forEach(function(u, i){ ejes[u] = i === 0 ? 'y' : 'y1'; });
+  var excluidas = unidades.slice(2);
+  var usados = elegidos.filter(function(r){ return ejes[r.unidad]; });
+
   var ds = [];
-  elegidos.forEach(function(r, i){
+  usados.forEach(function(r, i){
     var c = paleta[i % paleta.length];
-    ds.push({
-      label: cortar(r.nombre) + ' · Jalisco', borderColor:c, backgroundColor:c,
+    var base = { borderColor:c, backgroundColor:c, tension:.25, spanGaps:false,
+                 yAxisID: ejes[r.unidad], _uni: r.unidad };
+    ds.push(Object.assign({}, base, {
+      label: cortar(corta(r.nombre), 32) + ' · Jalisco',
       data: EDICIONES.map(function(e){ return r.JAL[e] !== undefined ? r.JAL[e] : null; }),
-      borderWidth:2.4, pointRadius:3, pointHoverRadius:5, tension:.25, spanGaps:false,
-      _uni: r.unidad
-    });
-    ds.push({
-      label: cortar(r.nombre) + ' · Nacional', borderColor:c, backgroundColor:c,
+      borderWidth:2.4, pointRadius:3, pointHoverRadius:5 }));
+    ds.push(Object.assign({}, base, {
+      label: cortar(corta(r.nombre), 32) + ' · Nacional',
       data: EDICIONES.map(function(e){ return r.NAC[e] !== undefined ? r.NAC[e] : null; }),
-      borderWidth:1.6, borderDash:[5,4], pointRadius:2, pointHoverRadius:4,
-      tension:.25, spanGaps:false, _uni: r.unidad
-    });
+      borderWidth:1.6, borderDash:[5,4], pointRadius:2, pointHoverRadius:4 }));
   });
 
-  var uni = elegidos.length ? elegidos[0].unidad : 'porcentaje';
+  var u0 = unidades[0] || 'porcentaje', u1 = unidades[1];
+  var nota = '';
+  if (u1) nota = 'Eje izquierdo: ' + nombreUnidad(u0) + '. Eje derecho: ' + nombreUnidad(u1) + '.';
+  else if (elegidos.length) nota = 'Escala en ' + nombreUnidad(u0) + '.';
+  if (excluidas.length){
+    nota += ' Se excluyeron los indicadores en ' +
+      excluidas.map(nombreUnidad).join(' y ') + ': una gráfica admite dos escalas, no tres.';
+  }
+  $('evNotaLinea').textContent = nota;
+
+  var escalas = {
+    x:{ grid:{ display:false }, ticks:{ font:{ size:11 } } },
+    y:{ position:'left', grid:{ color:'#EDF0F5' },
+        ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, u0); } } }
+  };
+  if (u1){
+    escalas.y1 = { position:'right', grid:{ drawOnChartArea:false },
+                   ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, u1); } } };
+  }
+
   if (gHist) gHist.destroy();
   gHist = new Chart($('evHistorico'), {
     type:'line',
@@ -2175,13 +2302,9 @@ function pintarHistorico(regs){
       plugins:{
         legend:{ position:'bottom', labels:{ boxWidth:22, font:{ size:11 }, usePointStyle:true } },
         tooltip:{ callbacks:{ label:function(c){
-          return c.dataset.label + ': ' + fmt(c.parsed.y, c.dataset._uni || uni); } } }
+          return c.dataset.label + ': ' + fmt(c.parsed.y, c.dataset._uni || u0); } } }
       },
-      scales:{
-        x:{ grid:{ display:false }, ticks:{ font:{ size:11 } } },
-        y:{ grid:{ color:'#EDF0F5' },
-            ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, uni); } } }
-      }
+      scales: escalas
     }
   });
 }
@@ -2212,7 +2335,7 @@ function pintarHallazgos(regs, ed){
   if (mejoras.length){
     var m = mayor(mejoras);
     lineas.push(['Mejora más marcada',
-      m.r.nombre + ' se ubicó en ' + fmt(m.v, m.r.unidad) + ' para Jalisco, ' +
+      corta(m.r.nombre) + ' se ubicó en ' + fmt(m.v, m.r.unidad) + ' para Jalisco, ' +
       fmtDif(m.d, m.r.unidad) + ' respecto de la edición ' + m.pe + '. ' +
       'De los ' + regs.length + ' indicadores del bloque, ' + mejoras.length +
       ' se movieron en la dirección favorable.', false]);
@@ -2220,7 +2343,7 @@ function pintarHallazgos(regs, ed){
   if (deterioros.length){
     var p = mayor(deterioros);
     lineas.push(['Deterioro más marcado',
-      p.r.nombre + ' se ubicó en ' + fmt(p.v, p.r.unidad) + ' para Jalisco, ' +
+      corta(p.r.nombre) + ' se ubicó en ' + fmt(p.v, p.r.unidad) + ' para Jalisco, ' +
       fmtDif(p.d, p.r.unidad) + ' respecto de la edición ' + p.pe + '. ' +
       deterioros.length + ' indicadores del bloque se movieron en contra.', true]);
   }
@@ -2229,7 +2352,7 @@ function pintarHallazgos(regs, ed){
     var g = brechas[0];
     var peor = (g.r.dir === 'baja') ? (g.b > 0) : (g.b < 0);
     lineas.push(['Mayor distancia contra el nacional',
-      g.r.nombre + ': Jalisco ' + fmt(g.vj, g.r.unidad) + ' frente a ' +
+      corta(g.r.nombre) + ': Jalisco ' + fmt(g.vj, g.r.unidad) + ' frente a ' +
       fmt(g.vn, g.r.unidad) + ' nacional, una diferencia de ' +
       fmtDif(g.b, g.r.unidad) + ' ' + (peor ? 'desfavorable' : 'favorable') + ' para el estado.', peor]);
 
@@ -2272,7 +2395,7 @@ function pintarTabla(regs, ed){
         var cl = (pe === null) ? 'd-igual' : claseDif(v - r[amb][pe], r.dir);
         return '<td class="' + cl + (e===ed?' ev-ref':'') + '">' + fmt(v, r.unidad) + '</td>';
       }).join('');
-      cuerpo += '<tr><td class="ev-td-ind">' + esc(r.nombre) +
+      cuerpo += '<tr><td class="ev-td-ind">' + esc(corta(r.nombre)) +
         (r.nota ? '<span class="ev-chip" title="' + esc(r.nota) + '">verificar</span>' : '') +
         '</td><td class="ev-td-ent">' + nomb + '</td>' + celdas + '</tr>';
     });
@@ -2292,6 +2415,17 @@ function pintarDiagnostico(){
     });
   });
 
+  var sospechosas = 0;
+  BASE.forEach(function(r){
+    if (r.unidad !== 'tasa_100k') return;
+    EDICIONES.forEach(function(e){
+      ['JAL','NAC'].forEach(function(a){
+        var v = r[a][e];
+        if (v !== undefined && v < 100) sospechosas++;
+      });
+    });
+  });
+
   $('evDiag').innerHTML =
     '<div><span>Origen</span><strong>' +
       (fuenteDatos === 'sheet' ? 'Hoja en línea' : 'Copia local') + '</strong></div>' +
@@ -2301,12 +2435,14 @@ function pintarDiagnostico(){
     '<div><span>Cifras leídas</span><strong>' + celdas.toLocaleString('es-MX') + '</strong></div>' +
     '<div><span>Ediciones con dato</span><strong>' +
       (eds.length ? eds[0] + '–' + eds[eds.length-1] : '—') + '</strong></div>' +
-    '<div><span>Con advertencia</span><strong>' + conNota + '</strong></div>';
+    '<div><span>Con advertencia</span><strong>' + conNota + '</strong></div>' +
+    '<div><span>Tasas fuera de rango</span><strong' +
+      (sospechosas ? ' style="color:#C0392B"' : '') + '>' + sospechosas + '</strong></div>';
 
   var cn = BASE.filter(function(r){ return r.nota; });
   $('evTablaNotas').tBodies[0].innerHTML = cn.length
     ? cn.map(function(r){
-        return '<tr><td style="font-weight:600;min-width:190px">' + esc(r.nombre) +
+        return '<tr><td style="font-weight:600;min-width:190px">' + esc(corta(r.nombre)) +
                '</td><td>' + esc(r.nota) + '</td></tr>';
       }).join('')
     : '<tr><td>Ninguna advertencia registrada en la base.</td></tr>';
@@ -2350,7 +2486,12 @@ function enlazar(){
     var b = this;
     if (typeof html2canvas === 'undefined'){ return; }
     b.disabled = true; b.textContent = 'Generando…';
-    html2canvas($('reporteEV'), { scale:2, backgroundColor:'#EDF0F5', useCORS:true })
+    /* la tabla vive en un contenedor con desplazamiento lateral: se libera
+       durante la captura para que la imagen no la corte */
+    var caja = $('evTabla').parentNode, prev = caja.style.overflowX;
+    caja.style.overflowX = 'visible';
+    html2canvas($('reporteEV'), { scale:2, backgroundColor:'#EDF0F5', useCORS:true,
+                                  windowWidth: Math.max(document.body.scrollWidth, $('evTabla').scrollWidth + 120) })
       .then(function(lienzo){
         var a = document.createElement('a');
         a.download = 'ENVIPE_' + edicionSel + '_' +
@@ -2359,7 +2500,8 @@ function enlazar(){
         a.click();
       })
       .catch(function(){})
-      .then(function(){ b.disabled = false; b.innerHTML = '&#8595; Descargar imagen'; });
+      .then(function(){ caja.style.overflowX = prev;
+                        b.disabled = false; b.innerHTML = '&#8595; Descargar imagen'; });
   });
 }
 
