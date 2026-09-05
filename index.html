@@ -407,6 +407,85 @@ footer p{margin:4px 0}
   .nivel1-tab .n1-sub{ display:none; }
 }
 </style>
+
+<style>
+/* ============================================================
+   T2-T5 — Vista ENVIPE. Reutiliza los componentes de la ENSU
+   (panel, portada, tarjeta, lienzo, hallazgo, tabla) y solo
+   agrega lo que no existia.
+   ============================================================ */
+.ev-leyenda{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;font-size:12.5px;color:var(--tenue)}
+.ev-leyenda span{display:inline-flex;align-items:center;gap:7px}
+.ev-punto{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.ev-lista{display:flex;flex-direction:column;gap:1px}
+.ev-fila{
+  display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;
+  gap:14px;align-items:center;padding:9px 10px;border-radius:7px;
+  border-bottom:1px solid var(--linea);
+}
+.ev-fila:hover{background:#F2F6FB}
+.ev-fila .ev-nom{font-size:13px;font-weight:600;line-height:1.3}
+.ev-fila .ev-nom small{display:block;font-weight:400;font-size:11px;color:var(--tenue)}
+.ev-fila .ev-val{
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:14.5px;font-weight:600;min-width:82px;text-align:right;
+}
+.ev-fila .ev-nac{
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:12.5px;color:var(--nacional);min-width:78px;text-align:right;
+}
+.ev-fila .ev-dif{
+  font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;
+  min-width:76px;text-align:right;
+}
+.ev-chip{
+  display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;
+  background:#FFF2CC;border:1px solid #E8CF8A;color:#6B5310;
+  font-family:'Inter',sans-serif;font-size:10px;font-weight:700;letter-spacing:.04em;
+  vertical-align:middle;cursor:help;
+}
+.ev-checks{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;max-height:132px;overflow-y:auto}
+.ev-check{
+  font-size:12px;font-weight:600;color:var(--tenue);
+  border:1px solid var(--linea);border-radius:20px;padding:5px 12px;
+  cursor:pointer;background:#fff;transition:all .15s ease;white-space:nowrap;
+}
+.ev-check[aria-pressed="true"]{background:var(--marina);color:#fff;border-color:var(--marina)}
+.ev-check:hover{border-color:var(--marina)}
+
+.ev-tabla td.ev-td-ind{text-align:left;white-space:normal;min-width:250px;font-weight:600}
+.ev-tabla td.ev-td-ent{text-align:left;white-space:nowrap;color:var(--tenue)}
+.ev-tabla th{padding:9px 11px;text-align:right}
+.ev-tabla th:first-child,.ev-tabla th:nth-child(2){text-align:left}
+.ev-tabla tr:nth-child(even) td{background:#FAFBFD}
+.ev-tabla td.ev-ref{background:#EAF1FA !important;font-weight:700}
+.ev-tabla td.ev-vacia{color:#C3CAD5}
+
+.ev-diag{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;margin-bottom:18px;
+}
+.ev-diag div{
+  background:#F7F9FC;border:1px solid var(--linea);border-radius:8px;padding:12px 14px;
+}
+.ev-diag span{
+  display:block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--tenue);font-weight:700;
+}
+.ev-diag strong{
+  font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;
+  color:var(--marina-900);
+}
+.ev-notas{max-height:230px;overflow-y:auto;border:1px solid var(--linea);border-radius:8px}
+.ev-notas table{font-size:12px}
+.ev-notas td{text-align:left;white-space:normal}
+
+@media (max-width:820px){
+  .ev-fila{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}
+  .ev-fila .ev-nac{display:none}
+}
+</style>
 </head>
 <body>
 
@@ -602,25 +681,147 @@ footer p{margin:4px 0}
 </div><!-- /vistaENSU -->
 
 <div class="vista" id="vistaENVIPE" role="tabpanel" aria-labelledby="n1-ENVIPE" hidden>
-  <div class="andamio">
+
+<nav class="control" aria-label="Controles del reporte ENVIPE">
+  <div class="control-int">
+    <div class="pestanas" id="pestanasEV" role="tablist" aria-label="Bloque temático"></div>
+    <div class="periodo-sel">
+      <label for="selEdicionEV">Edición de referencia</label>
+      <select id="selEdicionEV"></select>
+    </div>
+  </div>
+</nav>
+
+<div class="aviso aviso-adv" id="avisoRespaldoEV" role="status">
+  <span>&#9888;</span><span id="avisoRespaldoEVTxt"></span>
+</div>
+<div class="aviso aviso-err" id="avisoErrorEV" role="alert">
+  <span>&#9888;</span><span id="avisoErrorEVTxt"></span>
+</div>
+
+<div id="cargandoEV" class="cargando">
+  <div class="giro"></div>
+  <p>Conectando con la base de datos de la ENVIPE&#8230;</p>
+</div>
+
+<main id="reporteEV" class="oculto">
+
+  <section class="panel portada">
+    <div class="eyebrow" id="evPortadaCat">&#8212;</div>
+    <h2 id="evPortadaTitulo">&#8212;</h2>
+    <p class="sub" id="evPortadaSub">&#8212;</p>
+    <div class="portada-meta">
+      <div><span>Edición</span><strong id="evMetaEdicion">&#8212;</strong></div>
+      <div><span>Año de referencia</span><strong id="evMetaRef">&#8212;</strong></div>
+      <div><span>Indicadores</span><strong id="evMetaInd">&#8212;</strong></div>
+      <div><span>Comparativo</span><strong>Jalisco vs Nacional</strong></div>
+      <div><span>Fuente</span><strong>INEGI &#183; ENVIPE</strong></div>
+    </div>
+  </section>
+
+  <div class="duo">
     <section class="panel">
-      <div class="eyebrow">Andamiaje</div>
-      <h2>Vista de la ENVIPE</h2>
-      <p>
-        Esta vista es el contenedor de la Encuesta Nacional de Victimización y Percepción
-        sobre Seguridad Pública. La navegación, el ruteo por dirección y la conmutación con
-        la vista de la ENSU ya funcionan. El contenido se construye en las siguientes tandas.
-      </p>
-      <ul>
-        <li><b>T2</b> — Lectura de la pestaña ENVIPE del Sheet, normalización y respaldo embebido.</li>
-        <li><b>T3</b> — Victimización, incidencia delictiva y cifra negra.</li>
-        <li><b>T4</b> — Percepción de inseguridad, preocupaciones y conductas antisociales.</li>
-        <li><b>T5</b> — Confianza, corrupción y conocimiento de acciones de gobierno.</li>
-        <li><b>T6</b> — Hallazgos automáticos, base de datos, descarga de imagen y ficha técnica.</li>
-      </ul>
-      <span class="marca-paso">Entrega actual: T1 — andamiaje y ruteo</span>
+      <div class="panel-cab">
+        <div class="eyebrow">Comparativo</div>
+        <h2 id="evTituloBarras">Resultado de la edición</h2>
+        <p class="sub">Jalisco frente al agregado nacional en la edición seleccionada.</p>
+      </div>
+      <div class="ev-leyenda">
+        <span><i class="ev-punto" style="background:#1B3A8C"></i>Jalisco</span>
+        <span><i class="ev-punto" style="background:#8E9AA8"></i>Nacional</span>
+      </div>
+      <div class="lienzo" id="evCajaBarras"><canvas id="evBarras"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-cab">
+        <div class="eyebrow">Lectura de la edición</div>
+        <h2>Jalisco, valor y cambio</h2>
+        <p class="sub">Valor de Jalisco, referencia nacional y cambio contra la edición anterior.</p>
+      </div>
+      <div class="ev-lista" id="evLista"></div>
+      <p class="pista">&#9679; Verde: el indicador se movió en la dirección favorable. Rojo: en contra.</p>
     </section>
   </div>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Síntesis</div>
+      <h2>Indicadores de contexto</h2>
+      <p class="sub">Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.</p>
+    </div>
+    <div class="tarjetas" id="evTarjetas"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Serie histórica</div>
+      <h2 id="evTituloLinea">Comportamiento desde 2015</h2>
+      <p class="sub">Seleccione uno o más indicadores. La línea sólida es Jalisco; la punteada, el nacional. Los cortes corresponden a ediciones sin dato en la base.</p>
+    </div>
+    <div class="ev-checks" id="evChecks" role="group" aria-label="Indicadores en la serie histórica"></div>
+    <div class="lienzo h-alta"><canvas id="evHistorico"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Hallazgos</div>
+      <h2 id="evTituloHallazgos">Lectura del bloque</h2>
+      <p class="sub">Texto generado automáticamente a partir de las cifras de la edición seleccionada y la inmediata anterior.</p>
+    </div>
+    <div class="hallazgos" id="evHallazgos"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Base de datos</div>
+      <h2>Serie completa del bloque</h2>
+      <p class="sub">Fondo rojo: el valor se movió en contra. Verde: a favor. Gris: sin cambio o sin lectura. La columna de la edición de referencia aparece resaltada.</p>
+    </div>
+    <div class="tabla-caja"><table class="ev-tabla" id="evTabla"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <div class="nota-pie">
+    Nota: la ENVIPE se levanta una vez al año. La victimización y la incidencia delictiva miden el año
+    anterior al de la edición; la percepción, la confianza y la corrupción miden marzo y abril del año
+    de la edición. La columna «año de referencia» de la base indica cuál aplica a cada indicador.
+  </div>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Diagnóstico de la base</div>
+      <h2>Estado de la conexión y de los datos</h2>
+      <p class="sub">Verificación de lo que la página está leyendo. Sirve para auditar antes de presentar.</p>
+    </div>
+    <div class="ev-diag" id="evDiag"></div>
+    <h3 style="font-size:13px;font-weight:700;margin:6px 0 10px">Advertencias registradas en la base</h3>
+    <div class="ev-notas"><table id="evTablaNotas"><tbody></tbody></table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Ficha técnica</div>
+      <h2>Metodología</h2>
+    </div>
+    <div class="metodo">
+      <ul>
+        <li><b>Levantamiento</b>Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública (ENVIPE), INEGI. Periodicidad anual. Consulte la fuente en <a href="https://www.inegi.org.mx/programas/envipe/" target="_blank" rel="noopener">www.inegi.org.mx/programas/envipe/</a></li>
+        <li><b>Cobertura</b>Nacional y por entidad federativa. Se entrevista a personas de 18 años y más en viviendas particulares seleccionadas.</li>
+        <li><b>Año de referencia</b>La victimización, la incidencia delictiva y la cifra negra miden el año anterior al de la edición. La percepción, la confianza, la corrupción y el conocimiento de acciones miden marzo y abril del año de la edición.</li>
+        <li><b>Unidades</b>Los porcentajes se expresan en escala de 0 a 100 con un decimal. Las tasas son por cada 100&nbsp;000 habitantes de 18 años y más. Los absolutos corresponden a delitos o víctimas estimadas.</li>
+        <li><b>Variaciones</b>En puntos porcentuales para los indicadores porcentuales; en variación relativa para tasas y absolutos. Siempre contra la edición inmediata anterior con dato.</li>
+        <li><b>Celdas sin dato</b>Una celda vacía significa que el dato no está en la base, no que el valor sea cero. Las series muestran el corte en lugar de una caída a cero.</li>
+        <li><b>Advertencias</b>La etiqueta «verificar» señala indicadores con una anomalía detectada en la base de origen: valores repetidos en ediciones consecutivas, ceros usados como dato faltante o precisión distinta a la publicada. El detalle está en el diagnóstico.</li>
+        <li><b>Alcance</b>Esta versión compara Jalisco con el agregado nacional. La estructura de la base admite las 32 entidades federativas sin cambios.</li>
+      </ul>
+      <div>
+        <h3 class="titulo-colonias">Bloques temáticos</h3>
+        <div class="localidades" id="evBloquesFicha"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
 </div>
 
 <footer>
@@ -1560,6 +1761,613 @@ cargar();
   } else {
     enlazar();
   }
+})();
+</script>
+
+<script>
+/* ============================================================
+   T2-T5 — ENVIPE. Modulo aislado: todo vive dentro de esta
+   funcion y no comparte una sola variable con la ENSU.
+   ============================================================ */
+(function(){
+'use strict';
+
+/* ---------- 1. Configuracion ---------- */
+var EV_SHEET = '1QEid3qqRJYOTRHi0U8HsEMqJz6R0zCC8mfpZKnZ2FG4';
+var EV_GID   = '1639749117';
+var EV_CSV   = 'https://docs.google.com/spreadsheets/d/' + EV_SHEET +
+               '/export?format=csv&gid=' + EV_GID;
+
+var COLOR_JAL = '#1B3A8C', COLOR_NAC = '#8E9AA8';
+var EDICIONES = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026];
+
+var SUBTITULO = {
+  'Victimización e incidencia':
+    'Prevalencia, tasas de víctimas y de delitos por cada 100 000 habitantes de 18 años y más.',
+  'Cifra negra y denuncia':
+    'Proporción de delitos denunciados, con carpeta de investigación y cifra negra.',
+  'Percepción sobre la seguridad pública':
+    'Principales problemas percibidos, sensación de inseguridad y conductas antisociales atestiguadas.',
+  'Confianza en autoridades':
+    'Población que declara mucha o algo de confianza en cada autoridad.',
+  'Percepción de corrupción en autoridades':
+    'Población que percibe corrupción en cada autoridad.',
+  'Conocimiento de acciones de gobierno':
+    'Población que identifica acciones emprendidas por su gobierno para mejorar la seguridad.'
+};
+
+var RESPALDO_EV = [["PREV_HOGARES","Victimización e incidencia","Hogares con al menos una víctima del delito","porcentaje","baja",0,"Nacional",null,null,null,35.6,33.9,29.2,28.4,29,27.4,27.5,29,null,"edicion menos 1",""],["PREV_HOGARES","Victimización e incidencia","Hogares con al menos una víctima del delito","porcentaje","baja",14,"Jalisco",null,null,null,38.4,37.5,31.6,31.6,31.6,29.2,29.1,29.7,null,"edicion menos 1","mismo valor repetido 2020-2022; probable relleno, verificar"],["TASA_VICTIMAS","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes de 18 años y más","tasa_100k","baja",0,"Nacional",28200,28202,28788,29746,28269,24849,23520,24207,22587,23323,23323,null,"edicion menos 1",""],["TASA_VICTIMAS","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes de 18 años y más","tasa_100k","baja",14,"Jalisco",31375,33800,30939,31050,30445,27293,25764,25223,23594,24793,24179,null,"edicion menos 1",""],["TASA_VICTIMAS_H","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes — hombres","tasa_100k","baja",0,"Nacional",null,null,null,31419,29650,26440,25121,25253,23648,23817,25010,null,"edicion menos 1",""],["TASA_VICTIMAS_H","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes — hombres","tasa_100k","baja",14,"Jalisco",null,null,null,33410,31674,28715,26147,27208,23847,24390,24591,null,"edicion menos 1",""],["TASA_VICTIMAS_M","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes — mujeres","tasa_100k","baja",0,"Nacional",null,null,null,28280,27045,23471,22129,23309,21675,22903,23399,null,"edicion menos 1",""],["TASA_VICTIMAS_M","Victimización e incidencia","Tasa de víctimas del delito por cada 100 000 habitantes — mujeres","tasa_100k","baja",14,"Jalisco",null,null,null,28954,29327,26080,25443,23483,23371,25142,23837,null,"edicion menos 1",""],["TASA_DEL_TOTAL","Victimización e incidencia","Tasa de delitos por cada 100 000 habitantes — total","tasa_100k","baja",0,"Nacional",41655,35497,37017,39369,37807,33659,30601,30786,28701,33267,34918,null,"edicion menos 1",""],["TASA_DEL_TOTAL","Victimización e incidencia","Tasa de delitos por cada 100 000 habitantes — total","tasa_100k","baja",14,"Jalisco",43076,49317,41874,43023,40543,34703,33248,31944,28926,31731,33329,null,"edicion menos 1",""],["TASA_DEL_FRAUDE","Victimización e incidencia","Tasa de delitos de fraude por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",4255,3906,4656,5341,5397,5089,5904,5907,5770,6962,7574,null,"edicion menos 1",""],["TASA_DEL_FRAUDE","Victimización e incidencia","Tasa de delitos de fraude por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,5821,5529,6688,7051,7470,7886,7430,6169,6749,7579,null,"edicion menos 1",""],["TASA_DEL_ROBO_CALLE","Victimización e incidencia","Tasa de robo o asalto en calle o transporte público por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",11903,9995,9599,11081,10775,9091,6899,6582,5689,6526,6003,null,"edicion menos 1",""],["TASA_DEL_ROBO_CALLE","Victimización e incidencia","Tasa de robo o asalto en calle o transporte público por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",6925,9052,5277,8019,7420,5761,6157,4504,5222,4856,5371,null,"edicion menos 1",""],["TASA_DEL_ROBO_VEH","Victimización e incidencia","Tasa de robo total o parcial de vehículo por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",4886,4005,4200,4489,4339,3850,3243,3317,2878,3482,3353,null,"edicion menos 1",""],["TASA_DEL_ROBO_VEH","Victimización e incidencia","Tasa de robo total o parcial de vehículo por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",8459,7180,6281,6479,6102,5966,4931,5011,4222,4448,3634,null,"edicion menos 1",""],["TASA_DEL_EXTORSION","Victimización e incidencia","Tasa de extorsión por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",9850,8600,8945,7719,6542,5134,5160,5375,5056,5213,5971,null,"edicion menos 1",""],["TASA_DEL_EXTORSION","Victimización e incidencia","Tasa de extorsión por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",9952,13122,13138,10338,7853,5285,4884,4389,4156,4949,6337,null,"edicion menos 1",""],["TASA_DEL_AMENAZAS","Victimización e incidencia","Tasa de amenazas verbales por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",4109,2835,2872,3323,3253,3090,2958,2823,2949,3346,3346,null,"edicion menos 1",""],["TASA_DEL_AMENAZAS","Victimización e incidencia","Tasa de amenazas verbales por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,4787,3527,3411,4595,2741,3492,3352,3146,3567,3822,null,"edicion menos 1",""],["TASA_DEL_ROBO_CASA","Victimización e incidencia","Tasa de robo en casa habitación por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",2534,2496,2437,2745,2598,2063,1880,1849,1704,1742,3263.7,null,"edicion menos 1","tasa con decimales en 2025; INEGI publica enteros, verificar"],["TASA_DEL_ROBO_CASA","Victimización e incidencia","Tasa de robo en casa habitación por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,2324,2563,2777,2570,2461,2020,1516,1377,1381,2503.5,null,"edicion menos 1","tasa con decimales en 2025; INEGI publica enteros, verificar"],["TASA_DEL_OTROS","Victimización e incidencia","Tasa de otros delitos por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",1211,1042,1272,null,null,null,null,null,null,null,null,null,"edicion menos 1",""],["TASA_DEL_OTROS","Victimización e incidencia","Tasa de otros delitos por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,2338,2515,2476,1762,2735,1893,3109,2154,null,null,null,"edicion menos 1",""],["TASA_DEL_OTROS_ROBOS","Victimización e incidencia","Tasa de otros robos por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",1474,1318,1882,null,null,null,null,null,null,null,null,null,"edicion menos 1",""],["TASA_DEL_OTROS_ROBOS","Victimización e incidencia","Tasa de otros robos por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,2822,1383,1775,2937,866,998,1213,1007,null,null,null,"edicion menos 1",""],["TASA_DEL_LESIONES","Victimización e incidencia","Tasa de lesiones por cada 100 000 habitantes","tasa_100k","baja",0,"Nacional",1433,1299,1154,1176,1181,1226,1028,1100,1089,1604,1340.3,null,"edicion menos 1","tasa con decimales en 2025; INEGI publica enteros, verificar"],["TASA_DEL_LESIONES","Victimización e incidencia","Tasa de lesiones por cada 100 000 habitantes","tasa_100k","baja",14,"Jalisco",null,1870,1661,1060,1153,1418,988,1420,1472,1047,1749,null,"edicion menos 1",""],["SEC_VICTIMAS","Victimización e incidencia","Víctimas de secuestro (absolutos)","absoluto","baja",0,"Nacional",null,null,null,72645,79315,105189,80954,60716,77825,85931,92888,null,"edicion menos 1",""],["SEC_VICTIMAS","Victimización e incidencia","Víctimas de secuestro (absolutos)","absoluto","baja",14,"Jalisco",null,null,null,null,null,null,null,null,null,null,null,null,"edicion menos 1",""],["SEC_DELITOS","Victimización e incidencia","Delitos de secuestro (absolutos)","absoluto","baja",0,"Nacional",null,null,null,80319,81966,106886,83244,63131,79852,89056,94679,null,"edicion menos 1",""],["SEC_DELITOS","Victimización e incidencia","Delitos de secuestro (absolutos)","absoluto","baja",14,"Jalisco",null,null,null,null,null,null,null,null,null,null,null,null,"edicion menos 1",""],["DELITOS_ESTIMADOS","Victimización e incidencia","Delitos estimados (absolutos)","absoluto","baja",0,"Nacional",null,null,null,null,null,null,null,null,null,null,33450221,null,"edicion menos 1",""],["DELITOS_ESTIMADOS","Victimización e incidencia","Delitos estimados (absolutos)","absoluto","baja",14,"Jalisco",null,null,null,null,null,null,null,null,1811899,2000425,2145635,null,"edicion menos 1",""],["DEN_PCT","Cifra negra y denuncia","Porcentaje de delitos denunciados","porcentaje","sube",0,"Nacional",10.7,10.5,9.7,10.4,10.6,11,10.1,10.1,10.9,10.4,9.6,null,"edicion menos 1",""],["DEN_PCT","Cifra negra y denuncia","Porcentaje de delitos denunciados","porcentaje","sube",14,"Jalisco",9.3,8.8,11.3,11.6,11.3,13.6,11.3,8.7,13,11.9,9.7,null,"edicion menos 1",""],["DEN_CON_CI","Cifra negra y denuncia","Denuncias con inicio de carpeta de investigación","porcentaje","sube",0,"Nacional",null,null,null,65.3,63.9,69.1,66.9,67.3,69.3,68,70.8,null,"edicion menos 1",""],["DEN_CON_CI","Cifra negra y denuncia","Denuncias con inicio de carpeta de investigación","porcentaje","sube",14,"Jalisco",null,null,null,62.8,73.3,64.6,62.8,81.1,80.5,70.2,85.1,null,"edicion menos 1",""],["DEN_SIN_CI","Cifra negra y denuncia","Denuncias sin inicio de carpeta de investigación","porcentaje","baja",0,"Nacional",null,null,null,26.8,28.7,24.5,26.6,27.1,25.2,25.2,29.2,null,"edicion menos 1",""],["DEN_SIN_CI","Cifra negra y denuncia","Denuncias sin inicio de carpeta de investigación","porcentaje","baja",14,"Jalisco",null,null,null,28.7,18.8,27.5,27.4,13,14.4,18.1,14.9,null,"edicion menos 1",""],["DEN_NE","Cifra negra y denuncia","Denuncias — no especificado","porcentaje","neutro",0,"Nacional",null,null,null,7.9,7.4,6.4,6.5,5.6,5.5,6.8,null,null,"edicion menos 1","la fuente registra 0 en 2025; el cero no distingue de dato faltante"],["DEN_NE","Cifra negra y denuncia","Denuncias — no especificado","porcentaje","neutro",14,"Jalisco",null,null,null,8.5,7.9,7.9,9.8,5.8,5.1,11.7,null,null,"edicion menos 1","la fuente registra 0 en 2025; el cero no distingue de dato faltante"],["NO_DEN_PCT","Cifra negra y denuncia","Porcentaje de delitos no denunciados","porcentaje","baja",0,"Nacional",null,null,null,89.6,89.2,88.8,89.8,89.8,89,89.4,90.4,null,"edicion menos 1",""],["NO_DEN_PCT","Cifra negra y denuncia","Porcentaje de delitos no denunciados","porcentaje","baja",14,"Jalisco",null,null,null,88.2,88.7,86.2,88.6,91.3,86.9,87.9,90.3,null,"edicion menos 1",""],["NO_DEN_NE","Cifra negra y denuncia","Delitos no denunciados — no especificado","porcentaje","neutro",0,"Nacional",null,null,null,null,0.2,0.2,0.1,0.1,0.1,0.2,null,null,"edicion menos 1","la fuente registra 0 en 2018, 2025; el cero no distingue de dato faltante; mismo valor repetido 2021-2023; probable relleno, verificar"],["NO_DEN_NE","Cifra negra y denuncia","Delitos no denunciados — no especificado","porcentaje","neutro",14,"Jalisco",null,null,null,0.2,null,0.2,0.1,null,0.1,0.2,null,null,"edicion menos 1","la fuente registra 0 en 2019, 2022, 2025; el cero no distingue de dato faltante"],["CIFRA_NEGRA","Cifra negra y denuncia","Cifra negra: delitos no denunciados o sin carpeta de investigación","porcentaje","baja",0,"Nacional",null,null,null,93.2,93.2,92.4,93.3,93.2,92.4,92.9,93.2,null,"edicion menos 1",""],["CIFRA_NEGRA","Cifra negra y denuncia","Cifra negra: delitos no denunciados o sin carpeta de investigación","porcentaje","baja",14,"Jalisco",null,null,null,92.7,91.8,91.2,92.9,93,89.5,91.6,91.7,null,"edicion menos 1",""],["PREOC_INSEGURIDAD","Percepción sobre la seguridad pública","Principal problema percibido: inseguridad","porcentaje","baja",0,"Nacional",null,null,null,60.5,60.5,60.5,60.5,60.5,60.5,60.7,64.2,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_INSEGURIDAD","Percepción sobre la seguridad pública","Principal problema percibido: inseguridad","porcentaje","baja",14,"Jalisco",null,null,null,63,67.5,73.3,58.5,62,62,60.9,62.9,null,"edicion",""],["PREOC_PRECIOS","Percepción sobre la seguridad pública","Principal problema percibido: aumento de precios","porcentaje","baja",0,"Nacional",null,null,null,44.1,44.1,44.1,44.1,44.1,44.1,34.4,31.9,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_PRECIOS","Percepción sobre la seguridad pública","Principal problema percibido: aumento de precios","porcentaje","baja",14,"Jalisco",null,null,null,37.4,27.1,20,29.8,39.9,43.7,35.1,33.5,null,"edicion",""],["PREOC_SALUD","Percepción sobre la seguridad pública","Principal problema percibido: salud","porcentaje","baja",0,"Nacional",null,null,null,30.5,30.5,30.5,30.5,30.5,30.5,32.7,34.5,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_SALUD","Percepción sobre la seguridad pública","Principal problema percibido: salud","porcentaje","baja",14,"Jalisco",null,null,null,24.1,28.6,33,39.2,31.8,27.6,32.2,32.7,null,"edicion",""],["PREOC_CORRUPCION","Percepción sobre la seguridad pública","Principal problema percibido: corrupción","porcentaje","baja",0,"Nacional",null,null,null,22.2,22.2,22.2,22.2,22.2,22.2,23,25,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_CORRUPCION","Percepción sobre la seguridad pública","Principal problema percibido: corrupción","porcentaje","baja",14,"Jalisco",null,null,null,33.3,29.4,26,23.2,24.9,27.1,24.3,26.2,null,"edicion",""],["PREOC_POBREZA","Percepción sobre la seguridad pública","Principal problema percibido: pobreza","porcentaje","baja",0,"Nacional",null,null,null,23.5,23.5,23.5,23.5,23.5,23.5,21.6,20,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_POBREZA","Percepción sobre la seguridad pública","Principal problema percibido: pobreza","porcentaje","baja",14,"Jalisco",null,null,null,24.4,26.3,25.1,25.7,22.1,23.3,23.3,20.6,null,"edicion",""],["PREOC_NARCOTRAFICO","Percepción sobre la seguridad pública","Principal problema percibido: narcotráfico","porcentaje","baja",0,"Nacional",null,null,null,18,18,18,18,18,18,19.6,22.5,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_NARCOTRAFICO","Percepción sobre la seguridad pública","Principal problema percibido: narcotráfico","porcentaje","baja",14,"Jalisco",null,null,null,26.3,22.4,23.5,18.4,20.6,23.3,23.3,28.5,null,"edicion",""],["PREOC_DESEMPLEO","Percepción sobre la seguridad pública","Principal problema percibido: desempleo","porcentaje","baja",0,"Nacional",null,null,null,27.6,27.6,27.6,27.6,27.6,27.6,25.6,25.5,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_DESEMPLEO","Percepción sobre la seguridad pública","Principal problema percibido: desempleo","porcentaje","baja",14,"Jalisco",null,null,null,26.1,27.8,28.9,34,25.3,22,24,21.7,null,"edicion",""],["PREOC_IMPUNIDAD","Percepción sobre la seguridad pública","Principal problema percibido: falta de castigo a delincuentes","porcentaje","baja",0,"Nacional",null,null,null,19.8,19.8,19.8,19.8,19.8,19.8,19.1,20.3,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_IMPUNIDAD","Percepción sobre la seguridad pública","Principal problema percibido: falta de castigo a delincuentes","porcentaje","baja",14,"Jalisco",null,null,null,23.1,26.7,33.8,20.2,23.3,21.5,20.1,19.3,null,"edicion",""],["PREOC_AGUA","Percepción sobre la seguridad pública","Principal problema percibido: escasez de agua","porcentaje","baja",0,"Nacional",null,null,null,27.5,27.5,27.5,27.5,27.5,27.5,36.8,29.8,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_AGUA","Percepción sobre la seguridad pública","Principal problema percibido: escasez de agua","porcentaje","baja",14,"Jalisco",null,null,null,12.3,11.7,7.5,21.3,18.4,21,29,27.7,null,"edicion",""],["PREOC_EDUCACION","Percepción sobre la seguridad pública","Principal problema percibido: educación","porcentaje","baja",0,"Nacional",null,null,null,16.9,16.9,16.9,16.9,16.9,16.9,17.6,17.5,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_EDUCACION","Percepción sobre la seguridad pública","Principal problema percibido: educación","porcentaje","baja",14,"Jalisco",null,null,null,20.2,23.2,18.1,21.4,19.7,17.6,18.2,18,null,"edicion",""],["PREOC_DESASTRES","Percepción sobre la seguridad pública","Principal problema percibido: desastres naturales","porcentaje","baja",0,"Nacional",null,null,null,4.9,4.9,4.9,4.9,4.9,4.9,5.5,5.5,null,"edicion","mismo valor repetido 2018-2023; probable relleno, verificar"],["PREOC_DESASTRES","Percepción sobre la seguridad pública","Principal problema percibido: desastres naturales","porcentaje","baja",14,"Jalisco",null,null,null,4.3,4.5,4.5,4.3,4.8,4.9,5.9,5.7,null,"edicion",""],["PERC_INSEG_ENT","Percepción sobre la seguridad pública","Percepción de inseguridad en la entidad federativa","porcentaje","baja",0,"Nacional",null,null,null,null,null,null,null,null,74.6,73.6,75.6,null,"edicion",""],["PERC_INSEG_ENT","Percepción sobre la seguridad pública","Percepción de inseguridad en la entidad federativa","porcentaje","baja",14,"Jalisco",null,null,null,73.6,77.7,83.1,76,79.1,78.7,74.6,77.4,null,"edicion",""],["PERC_INSEG_MUN","Percepción sobre la seguridad pública","Percepción de inseguridad en el municipio","porcentaje","baja",0,"Nacional",null,null,null,null,null,null,null,null,63.7,62.5,64.7,null,"edicion",""],["PERC_INSEG_MUN","Percepción sobre la seguridad pública","Percepción de inseguridad en el municipio","porcentaje","baja",14,"Jalisco",null,null,null,64.7,69.1,77.6,62.7,62.1,62.5,57.4,61.3,null,"edicion",""],["PERC_INSEG_COL","Percepción sobre la seguridad pública","Percepción de inseguridad en la colonia o localidad","porcentaje","baja",0,"Nacional",null,null,null,null,null,null,null,null,39.9,40.2,40.5,null,"edicion",""],["PERC_INSEG_COL","Percepción sobre la seguridad pública","Percepción de inseguridad en la colonia o localidad","porcentaje","baja",14,"Jalisco",null,null,null,47.4,51.5,62.1,41.8,42,38.6,37.7,37.2,null,"edicion",""],["COND_ALCOHOL","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: consumo de alcohol en la calle","porcentaje","baja",0,"Nacional",null,null,null,64.4,null,null,null,null,64.4,63.1,63.8,null,"edicion",""],["COND_ALCOHOL","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: consumo de alcohol en la calle","porcentaje","baja",14,"Jalisco",null,null,null,68.1,67.5,66.7,66.5,64.8,62.9,62.3,60.6,null,"edicion",""],["COND_CONSUMO_DROGA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: consumo de droga","porcentaje","baja",0,"Nacional",null,null,null,50.5,null,null,null,null,50.5,49.3,52.1,null,"edicion",""],["COND_CONSUMO_DROGA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: consumo de droga","porcentaje","baja",14,"Jalisco",null,null,null,65.3,65.2,64.8,59.9,59.9,60.7,58.2,58.7,null,"edicion",""],["COND_ROBOS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: robos o asaltos frecuentes","porcentaje","baja",0,"Nacional",null,null,null,42.2,null,null,null,null,42.2,40,43,null,"edicion",""],["COND_ROBOS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: robos o asaltos frecuentes","porcentaje","baja",14,"Jalisco",null,null,null,56.8,55.5,68.7,50.1,49.8,46.9,41.3,45.7,null,"edicion",""],["COND_VENTA_DROGA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: venta de droga","porcentaje","baja",0,"Nacional",null,null,null,34.9,null,null,null,null,34.9,34.5,37,null,"edicion",""],["COND_VENTA_DROGA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: venta de droga","porcentaje","baja",14,"Jalisco",null,null,null,49.9,49.3,49.9,43.4,44.5,42.6,42.5,43.5,null,"edicion",""],["COND_DISPAROS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: disparos frecuentes","porcentaje","baja",0,"Nacional",null,null,null,31.2,null,null,null,null,31.2,31.6,34.4,null,"edicion",""],["COND_DISPAROS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: disparos frecuentes","porcentaje","baja",14,"Jalisco",null,null,null,28.8,32.7,42.6,33.3,31.5,33.2,29,30,null,"edicion",""],["COND_HOMICIDIOS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: homicidios","porcentaje","baja",0,"Nacional",null,null,null,21.7,null,null,null,null,21.7,21.6,23.7,null,"edicion",""],["COND_HOMICIDIOS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: homicidios","porcentaje","baja",14,"Jalisco",null,null,null,32.1,34.6,46.1,28.7,28.1,26.8,24.2,26.1,null,"edicion",""],["COND_PANDILLERISMO","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: pandillerismo o bandas violentas","porcentaje","baja",0,"Nacional",null,null,null,25.4,null,null,null,null,25.4,25,26.5,null,"edicion",""],["COND_PANDILLERISMO","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: pandillerismo o bandas violentas","porcentaje","baja",14,"Jalisco",null,null,null,37.6,36.8,45.3,30.1,29.3,25.5,25.9,26.3,null,"edicion",""],["COND_RINAS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: riñas entre vecinos","porcentaje","baja",0,"Nacional",null,null,null,23.3,null,null,null,null,23.3,22.9,24.8,null,"edicion",""],["COND_RINAS","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: riñas entre vecinos","porcentaje","baja",14,"Jalisco",null,null,null,24.9,26.4,28.7,24,24.8,25.2,22,22.9,null,"edicion",""],["COND_PIRATERIA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: venta de productos pirata","porcentaje","baja",0,"Nacional",null,null,null,16.4,null,null,null,null,16.4,15.6,17.8,null,"edicion",""],["COND_PIRATERIA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: venta de productos pirata","porcentaje","baja",14,"Jalisco",null,null,null,34.3,31.9,29.9,24.6,23.5,22.4,19,null,null,"edicion",""],["COND_TOMAS_LUZ","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: tomas irregulares de luz (diablitos)","porcentaje","baja",0,"Nacional",null,null,null,19.1,null,null,null,null,19.1,18.8,21,null,"edicion",""],["COND_TOMAS_LUZ","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: tomas irregulares de luz (diablitos)","porcentaje","baja",14,"Jalisco",null,null,null,null,null,27.4,22.3,23.4,21.5,20.6,23.1,null,"edicion","la fuente registra 0 en 2018, 2019; el cero no distingue de dato faltante"],["COND_EXTORSION","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: extorsiones (cobro de piso)","porcentaje","baja",0,"Nacional",null,null,null,12.1,null,null,null,null,12.1,16.9,19.8,null,"edicion",""],["COND_EXTORSION","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: extorsiones (cobro de piso)","porcentaje","baja",14,"Jalisco",null,null,null,22.1,21.5,null,null,null,null,null,22,null,"edicion","la fuente registra 0 en 2020, 2021, 2022, 2023, 2024; el cero no distingue de dato faltante"],["COND_NINGUNA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: ninguna conducta identificada","porcentaje","neutro",0,"Nacional",null,null,null,12.1,null,null,null,null,12.1,12.8,12.1,null,"edicion",""],["COND_NINGUNA","Percepción sobre la seguridad pública","Conducta delictiva o antisocial atestiguada: ninguna conducta identificada","porcentaje","neutro",14,"Jalisco",null,null,null,9,7.3,5.9,10,10.8,11.3,13.3,12.7,null,"edicion",""],["CONF_MARINA","Confianza en autoridades","Confianza (mucha + algo) en: Marina","porcentaje","sube",0,"Nacional",null,null,null,88.2,90,90.1,90.2,89.6,90.1,89.3,92.9,null,"edicion",""],["CONF_MARINA","Confianza en autoridades","Confianza (mucha + algo) en: Marina","porcentaje","sube",14,"Jalisco",null,null,null,89.2,91.2,92.8,90.6,91.8,90.7,89.2,89.6,null,"edicion",""],["CONF_EJERCITO","Confianza en autoridades","Confianza (mucha + algo) en: Ejército","porcentaje","sube",0,"Nacional",null,null,null,84.2,87.1,87.4,87.8,87.1,87.2,86.7,89.8,null,"edicion",""],["CONF_EJERCITO","Confianza en autoridades","Confianza (mucha + algo) en: Ejército","porcentaje","sube",14,"Jalisco",null,null,null,84.8,85.8,88.9,87.9,86.9,87.2,87.1,83.9,null,"edicion",""],["CONF_POL_FEDERAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Federal","porcentaje","sube",0,"Nacional",null,null,null,66.4,69.3,67.9,null,null,null,null,null,null,"edicion","el indicador no existe en 2021-2025"],["CONF_POL_FEDERAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Federal","porcentaje","sube",14,"Jalisco",null,null,null,66.3,70.3,64.5,null,null,null,null,null,null,"edicion","el indicador no existe en 2021-2025"],["CONF_GUARDIA_NAL","Confianza en autoridades","Confianza (mucha + algo) en: Guardia Nacional","porcentaje","sube",0,"Nacional",null,null,null,null,null,82.8,82.7,80.9,80.8,80.6,81.2,null,"edicion","el indicador no existe en 2015-2019"],["CONF_GUARDIA_NAL","Confianza en autoridades","Confianza (mucha + algo) en: Guardia Nacional","porcentaje","sube",14,"Jalisco",null,null,null,null,null,87,82.6,80.4,79.5,80.6,77.4,null,"edicion","el indicador no existe en 2015-2019"],["CONF_FGR","Confianza en autoridades","Confianza (mucha + algo) en: Fiscalía General de la República (FGR)","porcentaje","sube",0,"Nacional",null,null,null,57.5,61.4,65.2,65.8,63.3,64.2,65.1,64.7,null,"edicion",""],["CONF_FGR","Confianza en autoridades","Confianza (mucha + algo) en: Fiscalía General de la República (FGR)","porcentaje","sube",14,"Jalisco",null,null,null,56.7,62.3,68,64.6,66.4,64.5,65.1,67.5,null,"edicion",""],["CONF_POL_ESTATAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Estatal","porcentaje","sube",0,"Nacional",null,null,null,54.3,57.9,57.6,58.6,56.2,58.4,61.5,56.4,null,"edicion",""],["CONF_POL_ESTATAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Estatal","porcentaje","sube",14,"Jalisco",null,null,null,57.7,58.8,61.7,62.4,56.3,60.1,64.1,57.2,null,"edicion",""],["CONF_MP_FISCALIAS","Confianza en autoridades","Confianza (mucha + algo) en: Ministerio Público y Fiscalías Estatales","porcentaje","sube",0,"Nacional",null,null,null,53.1,54.8,56,57.7,58.3,58.1,59.7,56.3,null,"edicion",""],["CONF_MP_FISCALIAS","Confianza en autoridades","Confianza (mucha + algo) en: Ministerio Público y Fiscalías Estatales","porcentaje","sube",14,"Jalisco",null,null,null,57.1,59.6,60.7,61.7,59.6,61.4,61.8,59.9,null,"edicion",""],["CONF_POL_MINISTERIAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Ministerial o Judicial","porcentaje","sube",0,"Nacional",null,null,null,53,55.2,55.6,57.7,56,59.1,62.4,57.2,null,"edicion",""],["CONF_POL_MINISTERIAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Ministerial o Judicial","porcentaje","sube",14,"Jalisco",null,null,null,54.3,55.5,54.9,60.8,56.9,61.8,65.3,63.9,null,"edicion",""],["CONF_JUECES","Confianza en autoridades","Confianza (mucha + algo) en: Jueces","porcentaje","sube",0,"Nacional",null,null,null,55.1,55.1,56.9,60,58.3,59.1,60.5,54.8,null,"edicion",""],["CONF_JUECES","Confianza en autoridades","Confianza (mucha + algo) en: Jueces","porcentaje","sube",14,"Jalisco",null,null,null,53.3,52.6,56,58.8,56.9,58.8,54.3,53.6,null,"edicion",""],["CONF_POL_MUNICIPAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Preventiva Municipal","porcentaje","sube",0,"Nacional",null,null,null,48.2,52.8,52.9,55.1,52.7,55.7,58.3,53.8,null,"edicion",""],["CONF_POL_MUNICIPAL","Confianza en autoridades","Confianza (mucha + algo) en: Policía Preventiva Municipal","porcentaje","sube",14,"Jalisco",null,null,null,47,52.1,52.6,55.9,51.7,55,56.2,53.6,null,"edicion",""],["CONF_POL_TRANSITO","Confianza en autoridades","Confianza (mucha + algo) en: Policía de tránsito","porcentaje","sube",0,"Nacional",null,null,null,42,45.6,45.2,47.2,45,47,48.5,42.8,null,"edicion",""],["CONF_POL_TRANSITO","Confianza en autoridades","Confianza (mucha + algo) en: Policía de tránsito","porcentaje","sube",14,"Jalisco",null,null,null,46.7,50.5,53.1,50.6,46.7,49.6,47.3,43.3,null,"edicion",""],["CORR_POL_TRANSITO","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía de tránsito","porcentaje","baja",0,"Nacional",null,null,null,77.3,76.6,77.3,73.9,74.9,73.9,72,75.1,null,"edicion",""],["CORR_POL_TRANSITO","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía de tránsito","porcentaje","baja",14,"Jalisco",null,null,null,73.4,73.3,78.7,71.3,74.6,71.8,70,73.2,null,"edicion",""],["CORR_JUECES","Percepción de corrupción en autoridades","Percepción de corrupción en: Jueces","porcentaje","baja",0,"Nacional",null,null,null,67.5,68.4,70.1,65.4,67.3,66,64.6,69,null,"edicion",""],["CORR_JUECES","Percepción de corrupción en autoridades","Percepción de corrupción en: Jueces","porcentaje","baja",14,"Jalisco",null,null,null,70.1,74.5,69.3,68.2,71.1,65.7,69.5,67.7,null,"edicion",""],["CORR_POL_MUNICIPAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Preventiva Municipal","porcentaje","baja",0,"Nacional",null,null,null,69.1,67.9,69.7,65.5,66.8,64.7,62.4,65.1,null,"edicion",""],["CORR_POL_MUNICIPAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Preventiva Municipal","porcentaje","baja",14,"Jalisco",null,null,null,68.2,69.6,73.3,64.1,67.8,65.6,59.9,62.5,null,"edicion",""],["CORR_MP_FISCALIAS","Percepción de corrupción en autoridades","Percepción de corrupción en: Ministerio Público y Fiscalías Estatales","porcentaje","baja",0,"Nacional",null,null,null,66.5,65.5,65.9,62.4,64.7,62.8,33.4,62.9,null,"edicion",""],["CORR_MP_FISCALIAS","Percepción de corrupción en autoridades","Percepción de corrupción en: Ministerio Público y Fiscalías Estatales","porcentaje","baja",14,"Jalisco",null,null,null,63,61.4,67.3,61.2,61.9,57.8,59.9,58.4,null,"edicion",""],["CORR_FGR","Percepción de corrupción en autoridades","Percepción de corrupción en: Fiscalía General de la República (FGR)","porcentaje","baja",0,"Nacional",null,null,null,63.7,60.6,56.9,54.8,57.8,56.8,54.9,57,null,"edicion",""],["CORR_FGR","Percepción de corrupción en autoridades","Percepción de corrupción en: Fiscalía General de la República (FGR)","porcentaje","baja",14,"Jalisco",null,null,null,63,61.2,53.6,58.8,57.9,58,57.3,52.3,null,"edicion",""],["CORR_POL_MINISTERIAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Ministerial o Judicial","porcentaje","baja",0,"Nacional",null,null,null,64.9,62.3,63.6,59.8,59.5,57.8,54.8,56.7,null,"edicion",""],["CORR_POL_MINISTERIAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Ministerial o Judicial","porcentaje","baja",14,"Jalisco",null,null,null,62.8,60.2,66.3,57.6,59.7,54.2,47.4,50,null,"edicion",""],["CORR_POL_ESTATAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Estatal","porcentaje","baja",0,"Nacional",63.6,62.9,65.1,65.2,64.1,65.7,62.9,64.6,62.8,60.2,63.8,null,"edicion",""],["CORR_POL_ESTATAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Estatal","porcentaje","baja",14,"Jalisco",null,null,57.3,59.5,61,64,56.3,61.5,57.3,51.6,56.1,null,"edicion",""],["CORR_POL_FEDERAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Federal","porcentaje","baja",0,"Nacional",null,null,null,57.4,55.2,58.2,null,null,null,null,null,null,"edicion","el indicador no existe en 2021-2025"],["CORR_POL_FEDERAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Policía Federal","porcentaje","baja",14,"Jalisco",null,null,null,57.2,55.9,64,null,null,null,null,null,null,"edicion","el indicador no existe en 2021-2025"],["CORR_GUARDIA_NAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Guardia Nacional","porcentaje","baja",0,"Nacional",null,null,null,null,null,23,26.2,30.1,29.9,30.6,32.5,null,"edicion","el indicador no existe en 2015-2019"],["CORR_GUARDIA_NAL","Percepción de corrupción en autoridades","Percepción de corrupción en: Guardia Nacional","porcentaje","baja",14,"Jalisco",null,null,null,null,null,22.8,24.9,30.1,28.6,28.4,30.5,null,"edicion","el indicador no existe en 2015-2019"],["CORR_EJERCITO","Percepción de corrupción en autoridades","Percepción de corrupción en: Ejército","porcentaje","baja",0,"Nacional",null,null,null,27.6,23.6,24.4,24.8,25.5,25.1,25.5,25.7,null,"edicion",""],["CORR_EJERCITO","Percepción de corrupción en autoridades","Percepción de corrupción en: Ejército","porcentaje","baja",14,"Jalisco",null,null,null,26,24.7,23,23.3,26,23,23.7,24.2,null,"edicion",""],["CORR_MARINA","Percepción de corrupción en autoridades","Percepción de corrupción en: Marina","porcentaje","baja",0,"Nacional",null,null,null,21.6,18.1,18.2,19.4,20.2,19.7,19.8,19.5,null,"edicion",""],["CORR_MARINA","Percepción de corrupción en autoridades","Percepción de corrupción en: Marina","porcentaje","baja",14,"Jalisco",null,null,null,18,17.1,18.8,16.7,20.5,17.2,19.5,16.6,null,"edicion",""],["ACC_ALUMBRADO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mejorar el alumbrado","porcentaje","sube",0,"Nacional",null,null,null,50.4,48.3,50.3,50.5,50.2,55.1,56,53.3,null,"edicion",""],["ACC_ALUMBRADO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mejorar el alumbrado","porcentaje","sube",14,"Jalisco",null,null,null,54.7,48.5,51.8,48,45.6,46.2,48.7,47.1,null,"edicion",""],["ACC_PARQUES","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: construcción y mantenimiento de parques y canchas","porcentaje","sube",0,"Nacional",null,null,null,44.4,40.9,40.7,38.5,39.5,43.2,45.1,43.2,null,"edicion",""],["ACC_PARQUES","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: construcción y mantenimiento de parques y canchas","porcentaje","sube",14,"Jalisco",null,null,null,48.3,45,44.9,41.6,41.3,40.9,44.7,40.2,null,"edicion",""],["ACC_PATRULLAJE","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mayor patrullaje y vigilancia policiaca","porcentaje","sube",0,"Nacional",null,null,null,40.5,38.6,41.6,43.2,39.6,43,41,42.5,null,"edicion",""],["ACC_PATRULLAJE","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mayor patrullaje y vigilancia policiaca","porcentaje","sube",14,"Jalisco",null,null,null,32.3,31.7,32.9,33.9,31.5,33.3,34.6,31,null,"edicion",""],["ACC_INGRESO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mejorar el ingreso de las familias","porcentaje","sube",0,"Nacional",null,null,null,17.3,18,20.2,20.3,23.2,28,31.7,30.1,null,"edicion",""],["ACC_INGRESO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: mejorar el ingreso de las familias","porcentaje","sube",14,"Jalisco",null,null,null,19.1,20.4,19.8,21,24.3,25.5,26.7,24.2,null,"edicion",""],["ACC_OPERATIVOS","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: operativos contra la delincuencia","porcentaje","sube",0,"Nacional",null,null,null,29.2,28,26.4,25.3,26.1,26.2,28.1,26.7,null,"edicion",""],["ACC_OPERATIVOS","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: operativos contra la delincuencia","porcentaje","sube",14,"Jalisco",null,null,null,22.9,24.4,19.9,16.5,21.4,16.7,22.1,15.1,null,"edicion",""],["ACC_DESEMPLEO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: atender el desempleo","porcentaje","sube",0,"Nacional",null,null,null,19,19.3,19.6,16.3,19.8,25.9,26.5,23.7,null,"edicion",""],["ACC_DESEMPLEO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: atender el desempleo","porcentaje","sube",14,"Jalisco",null,null,null,21.8,17.9,19.4,15.3,21.6,25.2,22.1,20.1,null,"edicion",""],["ACC_SENSIBILIZACION","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: programa de sensibilización para que la gente denuncie","porcentaje","sube",0,"Nacional",null,null,null,20.5,18.4,18.7,16.8,15.7,17.7,17.3,18,null,"edicion",""],["ACC_SENSIBILIZACION","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: programa de sensibilización para que la gente denuncie","porcentaje","sube",14,"Jalisco",null,null,null,19.4,18,18.5,13,14.7,15.1,12.4,14,null,"edicion",""],["ACC_JOVENES","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: atención a jóvenes para disminuir la delincuencia juvenil","porcentaje","sube",0,"Nacional",null,null,null,16.5,15.4,18.3,14.1,15.7,19,21.1,20,null,"edicion",""],["ACC_JOVENES","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: atención a jóvenes para disminuir la delincuencia juvenil","porcentaje","sube",14,"Jalisco",null,null,null,16.4,16.1,18.8,11.2,16.6,18.4,16.8,17.7,null,"edicion",""],["ACC_NARCOTRAFICO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: combatir el narcotráfico","porcentaje","sube",0,"Nacional",null,null,null,11.1,11.2,12.3,11.5,11.1,13.3,11.9,13.4,null,"edicion",""],["ACC_NARCOTRAFICO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: combatir el narcotráfico","porcentaje","sube",14,"Jalisco",null,null,null,12.6,13.4,13.1,9.4,10.9,10,10.8,8,null,"edicion",""],["ACC_CORRUPCION","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: combatir la corrupción","porcentaje","sube",0,"Nacional",null,null,null,9.6,10.1,12.2,11.1,10.5,12.4,11.4,12.3,null,"edicion",""],["ACC_CORRUPCION","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: combatir la corrupción","porcentaje","sube",14,"Jalisco",null,null,null,10.7,10.5,13,9.2,10,9.2,10,7.8,null,"edicion",""],["ACC_POL_BARRIO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: policía de barrio que coordine la seguridad de la colonia","porcentaje","sube",0,"Nacional",null,null,null,9.8,10.9,11.4,10.2,8.5,9.7,10.4,9.9,null,"edicion",""],["ACC_POL_BARRIO","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: policía de barrio que coordine la seguridad de la colonia","porcentaje","sube",14,"Jalisco",null,null,null,7.7,7.2,10.8,4.2,7.1,5.7,7.7,5.7,null,"edicion",""],["ACC_VECINOS_SEGPRIV","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: organización de vecinos para contratar seguridad privada","porcentaje","sube",0,"Nacional",null,null,null,null,null,null,null,5.1,5.2,5.9,5.7,null,"edicion","el indicador no existe en 2015-2021"],["ACC_VECINOS_SEGPRIV","Conocimiento de acciones de gobierno","Conocimiento de acciones de gobierno: organización de vecinos para contratar seguridad privada","porcentaje","sube",14,"Jalisco",null,null,null,null,null,null,null,4.4,3.4,4.9,3.8,null,"edicion","el indicador no existe en 2015-2021"]];
+
+/* ---------- 2. Utilidades ---------- */
+function $(id){ return document.getElementById(id); }
+
+/* Lector de CSV con comillas: la columna de notas contiene comas. */
+function leerCSV(txt){
+  var filas = [], campo = '', fila = [], enComillas = false;
+  txt = txt.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (var i = 0; i < txt.length; i++){
+    var c = txt[i];
+    if (enComillas){
+      if (c === '"'){
+        if (txt[i+1] === '"'){ campo += '"'; i++; }
+        else enComillas = false;
+      } else campo += c;
+    } else if (c === '"'){ enComillas = true; }
+    else if (c === ','){ fila.push(campo); campo = ''; }
+    else if (c === '\n'){ fila.push(campo); filas.push(fila); fila = []; campo = ''; }
+    else campo += c;
+  }
+  if (campo !== '' || fila.length){ fila.push(campo); filas.push(fila); }
+  return filas;
+}
+
+/* Tolerante a separador de miles, espacios finos y signo de porcentaje. */
+function aNumero(v){
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  var s = String(v).replace(/\u00A0|\u202F|\s/g, '').replace(/%/g, '').trim();
+  if (s === '' || s === '-' || /^N\/?A$/i.test(s)) return null;
+  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
+  else if (/^-?\d+,\d+$/.test(s) && s.indexOf('.') === -1) s = s.replace(',', '.');
+  else s = s.replace(/,/g, '');
+  var n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+function fmt(v, unidad){
+  if (v === null || v === undefined) return '—';
+  if (unidad === 'porcentaje') return v.toFixed(1) + '%';
+  return Math.round(v).toLocaleString('es-MX');
+}
+function fmtDif(d, unidad){
+  if (d === null || d === undefined) return '—';
+  var s = d > 0 ? '+' : (d < 0 ? '−' : '');
+  var a = Math.abs(d);
+  if (unidad === 'porcentaje') return s + a.toFixed(1) + ' pp';
+  return s + Math.round(a).toLocaleString('es-MX');
+}
+function claseDif(d, dir){
+  if (d === null || d === 0) return 'd-igual';
+  if (dir === 'neutro') return 'd-nd';
+  var favorable = (dir === 'baja') ? (d < 0) : (d > 0);
+  return favorable ? 'd-mejora' : 'd-deterioro';
+}
+function esc(s){
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ---------- 3. Estado ---------- */
+var BASE = [];          /* un objeto por indicador */
+var BLOQUES = [];
+var bloqueSel = null, edicionSel = null, fuenteDatos = 'respaldo';
+var serieSel = {};      /* ids marcados en la grafica de linea, por bloque */
+var gBarras = null, gHist = null;
+
+/* ---------- 4. Normalizacion ---------- */
+function normalizar(filas){
+  /* filas: arreglo de arreglos, con o sin encabezado */
+  var inicio = 0;
+  if (filas.length && String(filas[0][0]).trim().toLowerCase() === 'id_indicador') inicio = 1;
+
+  var mapa = {}, orden = [];
+  for (var i = inicio; i < filas.length; i++){
+    var f = filas[i];
+    if (!f || !f[0] || !String(f[0]).trim()) continue;
+    var id = String(f[0]).trim();
+    if (!/^[A-Z][A-Z0-9_]+$/.test(id)) continue;          /* descarta pies de nota */
+
+    var cve = aNumero(f[5]);
+    var ambito = (cve === 0) ? 'NAC' : (cve === 14 ? 'JAL' : null);
+    if (!ambito){
+      var ent = String(f[6] || '').trim().toLowerCase();
+      ambito = (ent.indexOf('nacional') === 0) ? 'NAC' : (ent ? 'JAL' : null);
+    }
+    if (!ambito) continue;
+
+    if (!mapa[id]){
+      mapa[id] = {
+        id: id,
+        bloque: String(f[1] || '').trim(),
+        nombre: String(f[2] || '').trim(),
+        unidad: String(f[3] || '').trim() || 'porcentaje',
+        dir: String(f[4] || 'neutro').trim(),
+        ref: String(f[19] || '').trim(),
+        nota: '',
+        JAL: {}, NAC: {}
+      };
+      orden.push(id);
+    }
+    var reg = mapa[id];
+    for (var k = 0; k < EDICIONES.length; k++){
+      var val = aNumero(f[7 + k]);
+      if (val !== null) reg[ambito][EDICIONES[k]] = val;
+    }
+    var nt = String(f[20] || '').trim();
+    if (nt && reg.nota.indexOf(nt) === -1){
+      reg.nota += (reg.nota ? ' · ' : '') + (ambito === 'JAL' ? 'Jalisco: ' : 'Nacional: ') + nt;
+    }
+  }
+  return orden.map(function(id){ return mapa[id]; });
+}
+
+function edicionesConDato(){
+  var s = {};
+  BASE.forEach(function(r){
+    EDICIONES.forEach(function(e){
+      if (r.JAL[e] !== undefined || r.NAC[e] !== undefined) s[e] = true;
+    });
+  });
+  return EDICIONES.filter(function(e){ return s[e]; });
+}
+
+/* Edicion inmediata anterior CON dato para ese indicador y ambito. */
+function previa(reg, ambito, ed){
+  for (var i = EDICIONES.indexOf(ed) - 1; i >= 0; i--){
+    var e = EDICIONES[i];
+    if (reg[ambito][e] !== undefined) return e;
+  }
+  return null;
+}
+
+/* ---------- 5. Carga ---------- */
+function usarRespaldo(motivo){
+  fuenteDatos = 'respaldo';
+  BASE = normalizar(RESPALDO_EV);
+  $('avisoRespaldoEVTxt').textContent =
+    'Mostrando la copia local de la base. ' + motivo +
+    ' Las cifras son las de la última actualización incorporada a la página.';
+  $('avisoRespaldoEV').style.display = 'flex';
+}
+
+function cargar(forzar){
+  $('avisoRespaldoEV').style.display = 'none';
+  $('avisoErrorEV').style.display = 'none';
+  var url = EV_CSV + (forzar ? '&_=' + Date.now() : '');
+
+  return fetch(url, { cache: forzar ? 'reload' : 'default' })
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(txt){
+      var filas = leerCSV(txt);
+      var base = normalizar(filas);
+      if (base.length < 10) throw new Error('la hoja devolvió muy pocos renglones');
+      BASE = base; fuenteDatos = 'sheet';
+    })
+    .catch(function(err){
+      usarRespaldo('No fue posible leer la hoja de cálculo (' + err.message + ').');
+    })
+    .then(function(){
+      preparar();
+    });
+}
+
+/* ---------- 6. Preparacion ---------- */
+function preparar(){
+  BLOQUES = [];
+  BASE.forEach(function(r){
+    if (r.bloque && BLOQUES.indexOf(r.bloque) === -1) BLOQUES.push(r.bloque);
+  });
+  if (!bloqueSel || BLOQUES.indexOf(bloqueSel) === -1) bloqueSel = BLOQUES[0];
+
+  var eds = edicionesConDato();
+  if (!eds.length){
+    $('cargandoEV').classList.add('oculto');
+    $('avisoErrorEVTxt').textContent = 'La base se leyó pero no contiene ninguna cifra.';
+    $('avisoErrorEV').style.display = 'flex';
+    return;
+  }
+  if (!edicionSel || eds.indexOf(edicionSel) === -1) edicionSel = eds[eds.length - 1];
+
+  var sel = $('selEdicionEV');
+  sel.innerHTML = eds.map(function(e){
+    return '<option value="' + e + '"' + (e === edicionSel ? ' selected' : '') + '>' + e + '</option>';
+  }).join('');
+
+  $('pestanasEV').innerHTML = BLOQUES.map(function(b){
+    return '<button class="pestana" role="tab" type="button" data-bloque="' + esc(b) + '" ' +
+           'aria-selected="' + (b === bloqueSel) + '">' + esc(b) + '</button>';
+  }).join('');
+
+  $('evBloquesFicha').innerHTML = BLOQUES.map(function(b){
+    var n = BASE.filter(function(r){ return r.bloque === b; }).length;
+    return '<div><b>' + esc(b) + '</b><span>' + n + ' indicadores</span></div>';
+  }).join('');
+
+  $('cargandoEV').classList.add('oculto');
+  $('reporteEV').classList.remove('oculto');
+  pintarDiagnostico();
+  render();
+}
+
+/* ---------- 7. Render ---------- */
+function delBloque(){
+  return BASE.filter(function(r){ return r.bloque === bloqueSel; });
+}
+
+function render(){
+  var regs = delBloque();
+  var ed = edicionSel;
+
+  /* --- portada --- */
+  var conRef = regs.length ? regs[0].ref : '';
+  var anioRef = (conRef.indexOf('menos') !== -1) ? (ed - 1) : ed;
+  $('evPortadaCat').textContent = 'ENVIPE ' + ed;
+  $('evPortadaTitulo').textContent = bloqueSel;
+  $('evPortadaSub').textContent = SUBTITULO[bloqueSel] ||
+    'Comparativo de Jalisco frente al agregado nacional.';
+  $('evMetaEdicion').textContent = ed;
+  $('evMetaRef').textContent = (conRef.indexOf('menos') !== -1)
+    ? anioRef : ('mar–abr ' + anioRef);
+  $('evMetaInd').textContent = regs.length;
+  $('evTituloBarras').textContent = 'Resultado de la edición ' + ed;
+  $('evTituloLinea').textContent = bloqueSel + ', serie 2015 a ' + EDICIONES[EDICIONES.length-1];
+  $('evTituloHallazgos').textContent = 'Lectura de ' + bloqueSel.toLowerCase();
+
+  pintarBarras(regs, ed);
+  pintarLista(regs, ed);
+  pintarTarjetas(regs, ed);
+  pintarChecks(regs);
+  pintarHistorico(regs);
+  pintarHallazgos(regs, ed);
+  pintarTabla(regs, ed);
+}
+
+/* --- barras Jalisco vs Nacional --- */
+function pintarBarras(regs, ed){
+  var vis = regs.filter(function(r){
+    return r.JAL[ed] !== undefined || r.NAC[ed] !== undefined;
+  });
+  /* las unidades no se mezclan en un mismo eje: manda la mas frecuente */
+  var cuenta = {};
+  vis.forEach(function(r){ cuenta[r.unidad] = (cuenta[r.unidad] || 0) + 1; });
+  var uni = Object.keys(cuenta).sort(function(a,b){ return cuenta[b]-cuenta[a]; })[0] || 'porcentaje';
+  vis = vis.filter(function(r){ return r.unidad === uni; });
+
+  var alto = Math.max(300, vis.length * 30 + 70);
+  $('evCajaBarras').style.height = alto + 'px';
+
+  var etiquetas = vis.map(function(r){ return cortar(r.nombre); });
+  var datos = [
+    { label:'Jalisco',  data: vis.map(function(r){ return r.JAL[ed] !== undefined ? r.JAL[ed] : null; }),
+      backgroundColor: COLOR_JAL, borderRadius: 3, barPercentage:.82, categoryPercentage:.74 },
+    { label:'Nacional', data: vis.map(function(r){ return r.NAC[ed] !== undefined ? r.NAC[ed] : null; }),
+      backgroundColor: COLOR_NAC, borderRadius: 3, barPercentage:.82, categoryPercentage:.74 }
+  ];
+
+  if (gBarras) gBarras.destroy();
+  gBarras = new Chart($('evBarras'), {
+    type:'bar',
+    data:{ labels: etiquetas, datasets: datos },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ right:14 } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label:function(c){
+          return c.dataset.label + ': ' + fmt(c.parsed.x, uni); } } }
+      },
+      scales:{
+        x:{ beginAtZero:true, grid:{ color:'#EDF0F5' },
+            ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, uni); } } },
+        y:{ grid:{ display:false }, ticks:{ font:{ size:11 }, autoSkip:false } }
+      }
+    }
+  });
+}
+
+function cortar(s){
+  s = String(s);
+  if (s.length <= 46) return s;
+  var corte = s.lastIndexOf(' ', 46);
+  return s.slice(0, corte > 20 ? corte : 46) + '…';
+}
+
+/* --- lista con valor, nacional y cambio --- */
+function pintarLista(regs, ed){
+  $('evLista').innerHTML = regs.map(function(r){
+    var vj = r.JAL[ed], vn = r.NAC[ed];
+    var pe = previa(r, 'JAL', ed);
+    var dif = (vj !== undefined && pe !== null) ? (vj - r.JAL[pe]) : null;
+    var chip = r.nota
+      ? '<span class="ev-chip" title="' + esc(r.nota) + '">verificar</span>' : '';
+    return '<div class="ev-fila">' +
+      '<div class="ev-nom">' + esc(cortar(r.nombre)) + chip +
+        '<small>' + (pe ? 'vs ' + pe : 'sin edición previa') + '</small></div>' +
+      '<div class="ev-val">' + (vj !== undefined ? fmt(vj, r.unidad) : '—') + '</div>' +
+      '<div class="ev-nac">nac ' + (vn !== undefined ? fmt(vn, r.unidad) : '—') + '</div>' +
+      '<div class="ev-dif ' + claseDif(dif, r.dir) + '">' + fmtDif(dif, r.unidad) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+/* --- tarjetas: los cuatro mayores movimientos --- */
+function pintarTarjetas(regs, ed){
+  var con = [];
+  regs.forEach(function(r){
+    var vj = r.JAL[ed]; if (vj === undefined) return;
+    var pe = previa(r, 'JAL', ed); if (pe === null) return;
+    var d = vj - r.JAL[pe];
+    var rel = (r.unidad === 'porcentaje') ? Math.abs(d)
+            : (r.JAL[pe] ? Math.abs(d / r.JAL[pe]) * 100 : 0);
+    con.push({ r:r, v:vj, d:d, pe:pe, rel:rel });
+  });
+  con.sort(function(a,b){ return b.rel - a.rel; });
+
+  $('evTarjetas').innerHTML = con.slice(0,4).map(function(o){
+    var cl = claseDif(o.d, o.r.dir);
+    var rel = (o.r.unidad !== 'porcentaje' && o.r.JAL[o.pe])
+      ? ' (' + (o.d>0?'+':'−') + Math.abs(o.d / o.r.JAL[o.pe] * 100).toFixed(1) + '%)' : '';
+    return '<div class="tarjeta">' +
+      '<h3>' + esc(cortar(o.r.nombre)) + '</h3>' +
+      '<div class="grande">' + fmt(o.v, o.r.unidad) + '</div>' +
+      '<div class="pie">Jalisco. Cambio frente a ' + o.pe + ': ' +
+        '<b class="' + cl + '">' + fmtDif(o.d, o.r.unidad) + rel + '</b>.' +
+      '</div></div>';
+  }).join('') || '<p class="sub">Sin cambios calculables en esta edición.</p>';
+}
+
+/* --- selector de indicadores para la linea --- */
+function pintarChecks(regs){
+  if (!serieSel[bloqueSel]){
+    serieSel[bloqueSel] = regs.slice(0, Math.min(4, regs.length)).map(function(r){ return r.id; });
+  }
+  var sel = serieSel[bloqueSel];
+  $('evChecks').innerHTML = regs.map(function(r){
+    return '<button class="ev-check" type="button" data-id="' + esc(r.id) + '" ' +
+      'aria-pressed="' + (sel.indexOf(r.id) !== -1) + '">' + esc(cortar(r.nombre)) + '</button>';
+  }).join('');
+}
+
+/* --- serie historica: Jalisco solido, Nacional punteado --- */
+function pintarHistorico(regs){
+  var sel = serieSel[bloqueSel] || [];
+  var elegidos = regs.filter(function(r){ return sel.indexOf(r.id) !== -1; });
+  var paleta = ['#1B3A8C','#F07C1E','#0A3F4E','#6FA83A','#9B2C7F','#C0392B'];
+
+  var ds = [];
+  elegidos.forEach(function(r, i){
+    var c = paleta[i % paleta.length];
+    ds.push({
+      label: cortar(r.nombre) + ' · Jalisco', borderColor:c, backgroundColor:c,
+      data: EDICIONES.map(function(e){ return r.JAL[e] !== undefined ? r.JAL[e] : null; }),
+      borderWidth:2.4, pointRadius:3, pointHoverRadius:5, tension:.25, spanGaps:false,
+      _uni: r.unidad
+    });
+    ds.push({
+      label: cortar(r.nombre) + ' · Nacional', borderColor:c, backgroundColor:c,
+      data: EDICIONES.map(function(e){ return r.NAC[e] !== undefined ? r.NAC[e] : null; }),
+      borderWidth:1.6, borderDash:[5,4], pointRadius:2, pointHoverRadius:4,
+      tension:.25, spanGaps:false, _uni: r.unidad
+    });
+  });
+
+  var uni = elegidos.length ? elegidos[0].unidad : 'porcentaje';
+  if (gHist) gHist.destroy();
+  gHist = new Chart($('evHistorico'), {
+    type:'line',
+    data:{ labels: EDICIONES.map(String), datasets: ds },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'nearest', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ boxWidth:22, font:{ size:11 }, usePointStyle:true } },
+        tooltip:{ callbacks:{ label:function(c){
+          return c.dataset.label + ': ' + fmt(c.parsed.y, c.dataset._uni || uni); } } }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ font:{ size:11 } } },
+        y:{ grid:{ color:'#EDF0F5' },
+            ticks:{ font:{ size:11 }, callback:function(v){ return fmt(v, uni); } } }
+      }
+    }
+  });
+}
+
+/* --- hallazgos redactados --- */
+function pintarHallazgos(regs, ed){
+  var lineas = [], mejoras = [], deterioros = [], brechas = [];
+
+  regs.forEach(function(r){
+    var vj = r.JAL[ed], vn = r.NAC[ed];
+    var pe = previa(r, 'JAL', ed);
+    if (vj !== undefined && pe !== null){
+      var d = vj - r.JAL[pe];
+      if (d !== 0 && r.dir !== 'neutro'){
+        var favorable = (r.dir === 'baja') ? (d < 0) : (d > 0);
+        (favorable ? mejoras : deterioros).push({ r:r, d:d, pe:pe, v:vj });
+      }
+    }
+    if (vj !== undefined && vn !== undefined && r.dir !== 'neutro'){
+      var b = vj - vn;
+      if (b !== 0) brechas.push({ r:r, b:b, vj:vj, vn:vn });
+    }
+  });
+
+  function mayor(a){ return a.slice().sort(function(x,y){
+    return Math.abs(y.d) - Math.abs(x.d); })[0]; }
+
+  if (mejoras.length){
+    var m = mayor(mejoras);
+    lineas.push(['Mejora más marcada',
+      m.r.nombre + ' se ubicó en ' + fmt(m.v, m.r.unidad) + ' para Jalisco, ' +
+      fmtDif(m.d, m.r.unidad) + ' respecto de la edición ' + m.pe + '. ' +
+      'De los ' + regs.length + ' indicadores del bloque, ' + mejoras.length +
+      ' se movieron en la dirección favorable.', false]);
+  }
+  if (deterioros.length){
+    var p = mayor(deterioros);
+    lineas.push(['Deterioro más marcado',
+      p.r.nombre + ' se ubicó en ' + fmt(p.v, p.r.unidad) + ' para Jalisco, ' +
+      fmtDif(p.d, p.r.unidad) + ' respecto de la edición ' + p.pe + '. ' +
+      deterioros.length + ' indicadores del bloque se movieron en contra.', true]);
+  }
+  if (brechas.length){
+    brechas.sort(function(x,y){ return Math.abs(y.b) - Math.abs(x.b); });
+    var g = brechas[0];
+    var peor = (g.r.dir === 'baja') ? (g.b > 0) : (g.b < 0);
+    lineas.push(['Mayor distancia contra el nacional',
+      g.r.nombre + ': Jalisco ' + fmt(g.vj, g.r.unidad) + ' frente a ' +
+      fmt(g.vn, g.r.unidad) + ' nacional, una diferencia de ' +
+      fmtDif(g.b, g.r.unidad) + ' ' + (peor ? 'desfavorable' : 'favorable') + ' para el estado.', peor]);
+
+    var mejor = brechas.filter(function(x){
+      return (x.r.dir === 'baja') ? (x.b < 0) : (x.b > 0); }).length;
+    lineas.push(['Posición frente al nacional',
+      'Jalisco se compara favorablemente con el agregado nacional en ' + mejor +
+      ' de ' + brechas.length + ' indicadores comparables del bloque.', mejor * 2 < brechas.length]);
+  }
+
+  var conNota = regs.filter(function(r){ return r.nota; }).length;
+  if (conNota){
+    lineas.push(['Advertencia sobre la base',
+      conNota + ' de los ' + regs.length + ' indicadores del bloque traen una anomalía registrada ' +
+      'en la base de origen. Están marcados con la etiqueta «verificar» y el detalle aparece en el ' +
+      'diagnóstico, al final de esta vista. Conviene confirmarlos contra el tabulado antes de citarlos.',
+      true]);
+  }
+
+  $('evHallazgos').innerHTML = lineas.map(function(l){
+    return '<div class="hallazgo' + (l[2] ? ' h-alerta' : '') + '">' +
+      '<b>' + esc(l[0]) + '.</b> ' + esc(l[1]) + '</div>';
+  }).join('') || '<p class="sub">Sin cifras suficientes para redactar hallazgos en esta edición.</p>';
+}
+
+/* --- tabla base del bloque --- */
+function pintarTabla(regs, ed){
+  var tabla = $('evTabla');
+  tabla.tHead.innerHTML = '<tr><th>Indicador</th><th>Ámbito</th>' +
+    EDICIONES.map(function(e){ return '<th>' + e + '</th>'; }).join('') + '</tr>';
+
+  var cuerpo = '';
+  regs.forEach(function(r){
+    ['JAL','NAC'].forEach(function(amb){
+      var nomb = (amb === 'JAL') ? 'Jalisco' : 'Nacional';
+      var celdas = EDICIONES.map(function(e){
+        var v = r[amb][e];
+        if (v === undefined) return '<td class="ev-vacia' + (e===ed?' ev-ref':'') + '">—</td>';
+        var pe = previa(r, amb, e);
+        var cl = (pe === null) ? 'd-igual' : claseDif(v - r[amb][pe], r.dir);
+        return '<td class="' + cl + (e===ed?' ev-ref':'') + '">' + fmt(v, r.unidad) + '</td>';
+      }).join('');
+      cuerpo += '<tr><td class="ev-td-ind">' + esc(r.nombre) +
+        (r.nota ? '<span class="ev-chip" title="' + esc(r.nota) + '">verificar</span>' : '') +
+        '</td><td class="ev-td-ent">' + nomb + '</td>' + celdas + '</tr>';
+    });
+  });
+  tabla.tBodies[0].innerHTML = cuerpo;
+}
+
+/* --- diagnostico --- */
+function pintarDiagnostico(){
+  var eds = edicionesConDato();
+  var celdas = 0, conNota = 0;
+  BASE.forEach(function(r){
+    if (r.nota) conNota++;
+    EDICIONES.forEach(function(e){
+      if (r.JAL[e] !== undefined) celdas++;
+      if (r.NAC[e] !== undefined) celdas++;
+    });
+  });
+
+  $('evDiag').innerHTML =
+    '<div><span>Origen</span><strong>' +
+      (fuenteDatos === 'sheet' ? 'Hoja en línea' : 'Copia local') + '</strong></div>' +
+    '<div><span>Indicadores</span><strong>' + BASE.length + '</strong></div>' +
+    '<div><span>Renglones</span><strong>' + (BASE.length * 2) + '</strong></div>' +
+    '<div><span>Bloques</span><strong>' + BLOQUES.length + '</strong></div>' +
+    '<div><span>Cifras leídas</span><strong>' + celdas.toLocaleString('es-MX') + '</strong></div>' +
+    '<div><span>Ediciones con dato</span><strong>' +
+      (eds.length ? eds[0] + '–' + eds[eds.length-1] : '—') + '</strong></div>' +
+    '<div><span>Con advertencia</span><strong>' + conNota + '</strong></div>';
+
+  var cn = BASE.filter(function(r){ return r.nota; });
+  $('evTablaNotas').tBodies[0].innerHTML = cn.length
+    ? cn.map(function(r){
+        return '<tr><td style="font-weight:600;min-width:190px">' + esc(r.nombre) +
+               '</td><td>' + esc(r.nota) + '</td></tr>';
+      }).join('')
+    : '<tr><td>Ninguna advertencia registrada en la base.</td></tr>';
+}
+
+/* ---------- 8. Eventos ---------- */
+function enlazar(){
+  $('pestanasEV').addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('.pestana');
+    if (!b) return;
+    bloqueSel = b.dataset.bloque;
+    Array.prototype.forEach.call(this.children, function(x){
+      x.setAttribute('aria-selected', x === b);
+    });
+    render();
+  });
+
+  $('selEdicionEV').addEventListener('change', function(){
+    edicionSel = parseInt(this.value, 10);
+    render();
+  });
+
+  $('evChecks').addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('.ev-check');
+    if (!b) return;
+    var id = b.dataset.id, sel = serieSel[bloqueSel];
+    var i = sel.indexOf(id);
+    if (i === -1) sel.push(id); else sel.splice(i, 1);
+    b.setAttribute('aria-pressed', i === -1);
+    pintarHistorico(delBloque());
+  });
+
+  $('btnActualizarEV').addEventListener('click', function(){
+    var b = this; b.disabled = true; b.textContent = 'Actualizando…';
+    cargar(true).then(function(){
+      b.disabled = false; b.innerHTML = '&#8635; Actualizar datos';
+    });
+  });
+
+  $('btnDescargarEV').addEventListener('click', function(){
+    var b = this;
+    if (typeof html2canvas === 'undefined'){ return; }
+    b.disabled = true; b.textContent = 'Generando…';
+    html2canvas($('reporteEV'), { scale:2, backgroundColor:'#EDF0F5', useCORS:true })
+      .then(function(lienzo){
+        var a = document.createElement('a');
+        a.download = 'ENVIPE_' + edicionSel + '_' +
+          bloqueSel.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ0-9]+/g,'_') + '.png';
+        a.href = lienzo.toDataURL('image/png');
+        a.click();
+      })
+      .catch(function(){})
+      .then(function(){ b.disabled = false; b.innerHTML = '&#8595; Descargar imagen'; });
+  });
+}
+
+function iniciar(){ enlazar(); cargar(false); }
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
+else iniciar();
+
 })();
 </script>
 </body>
