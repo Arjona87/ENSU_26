@@ -456,6 +456,30 @@ footer p{margin:4px 0}
 .ev-check[aria-pressed="true"]{background:var(--marina);color:#fff;border-color:var(--marina)}
 .ev-check:hover{border-color:var(--marina)}
 
+/* ------------------------------------------------------------
+   T6 — compactado del comparativo. Reglas nuevas, con alcance
+   limitado a .duo-ev: la .duo de la ENSU no se ve afectada.
+   ------------------------------------------------------------ */
+.duo-ev>.panel{align-self:start}
+.duo-ev>.panel .lienzo{flex:0 0 auto}
+.ev-barra-cab{
+  display:flex;flex-wrap:wrap;align-items:center;
+  justify-content:space-between;gap:12px;margin-bottom:16px;
+}
+.ev-barra-cab .ev-leyenda{margin-bottom:0}
+.ev-ver{
+  font-size:12px;font-weight:700;color:var(--marina);
+  border:1px solid var(--marina);border-radius:20px;padding:5px 13px;
+  cursor:pointer;background:#fff;transition:all .15s ease;white-space:nowrap;
+}
+.ev-ver:hover{background:var(--marina);color:#fff}
+.ev-ver[hidden]{display:none}
+.ev-lista-caja{overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
+.ev-lista-caja::-webkit-scrollbar{width:8px}
+.ev-lista-caja::-webkit-scrollbar-track{background:transparent}
+.ev-lista-caja::-webkit-scrollbar-thumb{background:#CFD7E2;border-radius:4px}
+.ev-lista-caja::-webkit-scrollbar-thumb:hover{background:#AEB9C8}
+
 .ev-tabla td.ev-td-ind{text-align:left;white-space:normal;min-width:250px;font-weight:600}
 .ev-tabla td.ev-td-ent{text-align:left;white-space:nowrap;color:var(--tenue)}
 .ev-tabla th{padding:9px 11px;text-align:right}
@@ -721,16 +745,28 @@ footer p{margin:4px 0}
     </div>
   </section>
 
-  <div class="duo">
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Síntesis</div>
+      <h2>Lo que más se movió en el bloque</h2>
+      <p class="sub" id="evSubTarjetas">Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.</p>
+    </div>
+    <div class="tarjetas" id="evTarjetas"></div>
+  </section>
+
+  <div class="duo duo-ev">
     <section class="panel">
       <div class="panel-cab">
         <div class="eyebrow">Comparativo</div>
         <h2 id="evTituloBarras">Resultado de la edición</h2>
-        <p class="sub">Jalisco frente al agregado nacional en la edición seleccionada.</p>
+        <p class="sub">Jalisco frente al agregado nacional en la edición seleccionada, ordenado de mayor a menor valor de Jalisco.</p>
       </div>
-      <div class="ev-leyenda">
-        <span><i class="ev-punto" style="background:#1B3A8C"></i>Jalisco</span>
-        <span><i class="ev-punto" style="background:#8E9AA8"></i>Nacional</span>
+      <div class="ev-barra-cab">
+        <div class="ev-leyenda">
+          <span><i class="ev-punto" style="background:#1B3A8C"></i>Jalisco</span>
+          <span><i class="ev-punto" style="background:#8E9AA8"></i>Nacional</span>
+        </div>
+        <button class="ev-ver" type="button" id="evVerTodo" aria-expanded="false" hidden>Ver todos</button>
       </div>
       <div class="lienzo" id="evCajaBarras"><canvas id="evBarras"></canvas></div>
       <p class="pista" id="evNotaBarras"></p>
@@ -740,21 +776,12 @@ footer p{margin:4px 0}
       <div class="panel-cab">
         <div class="eyebrow">Lectura de la edición</div>
         <h2>Jalisco, valor y cambio</h2>
-        <p class="sub">Valor de Jalisco, referencia nacional y cambio contra la edición anterior.</p>
+        <p class="sub">Valor de Jalisco, referencia nacional y cambio contra la edición anterior. La lista incluye todos los indicadores del bloque.</p>
       </div>
-      <div class="ev-lista" id="evLista"></div>
+      <div class="ev-lista-caja" id="evListaCaja"><div class="ev-lista" id="evLista"></div></div>
       <p class="pista">&#9679; Verde: el indicador se movió en la dirección favorable. Rojo: en contra.</p>
     </section>
   </div>
-
-  <section class="panel">
-    <div class="panel-cab">
-      <div class="eyebrow">Síntesis</div>
-      <h2>Indicadores de contexto</h2>
-      <p class="sub" id="evSubTarjetas">Los cuatro indicadores del bloque con mayor movimiento respecto de la edición anterior.</p>
-    </div>
-    <div class="tarjetas" id="evTarjetas"></div>
-  </section>
 
   <section class="panel">
     <div class="panel-cab">
@@ -1928,7 +1955,17 @@ var BASE = [];          /* un objeto por indicador */
 var BLOQUES = [];
 var bloqueSel = null, edicionSel = null, fuenteDatos = 'respaldo';
 var serieSel = {};      /* ids marcados en la grafica de linea, por bloque */
+var verTodoEV = {};     /* T6: comparativo expandido o en top, por bloque */
 var gBarras = null, gHist = null;
+
+/* T6 — compactado del comparativo.
+   El bloque de Percepcion trae 26 indicadores: a 34 px por barra la grafica
+   medía cerca de 960 px y obligaba a bajar mucho. Se conserva la orientacion
+   horizontal, que es la unica que deja leer nombres largos, y se recorta el
+   alto por dos vias: 22 px por barra y un tope de 12 indicadores, ordenados
+   de mayor a menor valor de Jalisco, con control para ver el resto. */
+var TOPE_BARRAS = 12;   /* indicadores visibles por omision */
+var ALTO_BARRA  = 22;   /* pixeles por indicador */
 
 /* ---------- 4. Normalizacion ---------- */
 function normalizar(filas){
@@ -2115,13 +2152,48 @@ function pintarBarras(regs, ed){
   vis = vis.filter(function(r){ return r.unidad === uni; });
 
   var fuera = regs.length - vis.length;
-  $('evNotaBarras').textContent = fuera > 0
-    ? 'Se grafican los ' + vis.length + ' indicadores expresados en ' + nombreUnidad(uni) +
-      '. Los ' + fuera + ' restantes usan otra unidad y no comparten escala: aparécen en la serie histórica y en la tabla.'
-    : 'Los ' + vis.length + ' indicadores del bloque se expresan en ' + nombreUnidad(uni) + '.';
 
-  var alto = Math.max(300, vis.length * 34 + 78);
+  /* T6 — orden de mayor a menor por el valor de Jalisco de la edicion.
+     Sin dato de Jalisco se va al final; el nacional solo desempata. */
+  vis.sort(function(a,b){
+    var va = a.JAL[ed], vb = b.JAL[ed];
+    if (va === undefined && vb === undefined) return (b.NAC[ed]||0) - (a.NAC[ed]||0);
+    if (va === undefined) return 1;
+    if (vb === undefined) return -1;
+    return vb - va;
+  });
+
+  /* T6 — recorte al top, salvo que el usuario haya pedido ver todos */
+  var total   = vis.length;
+  var verTodo = !!verTodoEV[bloqueSel];
+  var recorta = total > TOPE_BARRAS && !verTodo;
+  if (recorta) vis = vis.slice(0, TOPE_BARRAS);
+
+  var btn = $('evVerTodo');
+  if (total > TOPE_BARRAS){
+    btn.hidden = false;
+    btn.textContent = verTodo ? ('Ver solo los ' + TOPE_BARRAS + ' mayores') : ('Ver los ' + total);
+    btn.setAttribute('aria-expanded', verTodo);
+  } else {
+    btn.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  var nota = recorta
+    ? 'Se grafican los ' + TOPE_BARRAS + ' indicadores de mayor valor en Jalisco, de ' + total +
+      ' expresados en ' + nombreUnidad(uni) + '.'
+    : 'Se grafican los ' + total + ' indicadores expresados en ' + nombreUnidad(uni) + '.';
+  if (fuera > 0){
+    nota += ' Los ' + fuera + ' restantes del bloque usan otra unidad y no comparten escala.';
+  }
+  nota += recorta || fuera > 0
+    ? ' Todos aparecen en la lista de al lado, en la serie histórica y en la tabla.'
+    : '';
+  $('evNotaBarras').textContent = nota;
+
+  var alto = Math.max(240, vis.length * ALTO_BARRA + 72);
   $('evCajaBarras').style.height = alto + 'px';
+  ajustarAltoLista(alto);
 
   var tope = 0;
   vis.forEach(function(r){
@@ -2129,12 +2201,12 @@ function pintarBarras(regs, ed){
     if (r.NAC[ed] !== undefined) tope = Math.max(tope, r.NAC[ed]);
   });
 
-  var etiquetas = vis.map(function(r){ return cortar(corta(r.nombre), 38); });
+  var etiquetas = vis.map(function(r){ return cortar(corta(r.nombre), 34); });
   var datos = [
     { label:'Jalisco',  data: vis.map(function(r){ return r.JAL[ed] !== undefined ? r.JAL[ed] : null; }),
-      backgroundColor: COLOR_JAL, borderRadius: 3, barPercentage:.82, categoryPercentage:.74 },
+      backgroundColor: COLOR_JAL, borderRadius: 2, barPercentage:.9, categoryPercentage:.82 },
     { label:'Nacional', data: vis.map(function(r){ return r.NAC[ed] !== undefined ? r.NAC[ed] : null; }),
-      backgroundColor: COLOR_NAC, borderRadius: 3, barPercentage:.82, categoryPercentage:.74 }
+      backgroundColor: COLOR_NAC, borderRadius: 2, barPercentage:.9, categoryPercentage:.82 }
   ];
 
   if (gBarras) gBarras.destroy();
@@ -2158,6 +2230,15 @@ function pintarBarras(regs, ed){
       }
     }
   });
+}
+
+/* T6 — la lista de al lado se acota al alto de la grafica para que el par
+   quede parejo y el bloque no se estire con 26 renglones. Nada se pierde:
+   la caja se desplaza por dentro y conserva todos los indicadores. */
+function ajustarAltoLista(altoGrafica){
+  var caja = $('evListaCaja');
+  if (!caja) return;
+  caja.style.maxHeight = Math.max(240, altoGrafica + 46) + 'px';
 }
 
 function cortar(s, max){
@@ -2465,6 +2546,19 @@ function enlazar(){
     render();
   });
 
+  /* T6 — alterna entre el top y el bloque completo. Solo repinta las barras:
+     la lista, las tarjetas y la tabla nunca se recortan.
+     El guardia evita que un segundo enlace registre el manejador dos veces:
+     serian dos alternancias por clic y el control se quedaria quieto. */
+  var btnVer = $('evVerTodo');
+  if (!btnVer.dataset.ligado){
+    btnVer.dataset.ligado = '1';
+    btnVer.addEventListener('click', function(){
+      verTodoEV[bloqueSel] = !verTodoEV[bloqueSel];
+      pintarBarras(delBloque(), edicionSel);
+    });
+  }
+
   $('evChecks').addEventListener('click', function(ev){
     var b = ev.target.closest && ev.target.closest('.ev-check');
     if (!b) return;
@@ -2490,6 +2584,10 @@ function enlazar(){
        durante la captura para que la imagen no la corte */
     var caja = $('evTabla').parentNode, prev = caja.style.overflowX;
     caja.style.overflowX = 'visible';
+    /* T6 — la lista se desplaza por dentro: se libera igual, para que la
+       imagen conserve todos los indicadores y no solo los visibles */
+    var lst = $('evListaCaja'), prevL = lst.style.maxHeight, prevO = lst.style.overflowY;
+    lst.style.maxHeight = 'none'; lst.style.overflowY = 'visible';
     html2canvas($('reporteEV'), { scale:2, backgroundColor:'#EDF0F5', useCORS:true,
                                   windowWidth: Math.max(document.body.scrollWidth, $('evTabla').scrollWidth + 120) })
       .then(function(lienzo){
@@ -2501,6 +2599,7 @@ function enlazar(){
       })
       .catch(function(){})
       .then(function(){ caja.style.overflowX = prev;
+                        lst.style.maxHeight = prevL; lst.style.overflowY = prevO;
                         b.disabled = false; b.innerHTML = '&#8595; Descargar imagen'; });
   });
 }
