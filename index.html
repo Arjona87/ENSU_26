@@ -2058,25 +2058,71 @@ function esEncabezado(fila){
 }
 
 /* Devuelve {idx:{nombre->posicion}, anios:[...], inicio:n} */
+function limpiaNombre(v){
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/\u00A0|\u202F/g, ' ').trim();
+}
+
+/* Reconoce una columna de edicion a partir de su encabezado.
+   Google Sheets devuelve el encabezado ya FORMATEADO: una celda con el numero
+   2015 vuelve como «2,015» por el separador de millares, y a veces como
+   «2015.0» o como fecha. Exigir /^(19|20)\d{2}$/ dejaba fuera todas las
+   ediciones y la pagina leia cero cifras. Se aceptan las cuatro formas. */
+function anioDe(nombre){
+  var s = limpiaNombre(nombre).replace(/[\s,']/g, '');
+  var m = s.match(/^((?:19|20)\d{2})(?:\.0+)?$/) ||
+          s.match(/^(?:Date\()?((?:19|20)\d{2})[,\-\/]/);
+  if (!m) return null;
+  var a = parseInt(m[1], 10);
+  return (a >= 1990 && a <= 2100) ? a : null;
+}
+
+/* Ultimo encabezado leido, para poder declararlo en el diagnostico. */
+var ENCABEZADO_LEIDO = [], EDICIONES_POR_POSICION = false;
+
 function mapaColumnas(filas){
   var nombres, inicio;
-  if (filas.length && esEncabezado(filas[0])){
-    nombres = filas[0].map(function(c){
-      return String(c === null || c === undefined ? '' : c).trim();
-    });
-    inicio = 1;
+
+  /* El encabezado casi siempre es el primer renglon, pero se busca en los
+     primeros cinco por si la hoja gana un titulo arriba. */
+  var fh = -1;
+  for (var q = 0; q < Math.min(5, filas.length); q++){
+    if (esEncabezado(filas[q])){ fh = q; break; }
+  }
+  if (fh >= 0){
+    nombres = filas[fh].map(limpiaNombre);
+    inicio = fh + 1;
   } else {
     nombres = COLS_CANONICAS.slice();
     inicio = 0;
   }
+
   var idx = {}, anios = [];
   nombres.forEach(function(n, k){
     if (!n) return;
     var clave = n.toLowerCase();
     if (idx[clave] === undefined) idx[clave] = k;
-    if (/^(19|20)\d{2}$/.test(n)){ anios.push({ anio: parseInt(n, 10), col: k }); }
+    var a = anioDe(n);
+    if (a !== null) anios.push({ anio: a, col: k });
   });
+
+  /* Ultimo recurso: si ningun encabezado se dejo leer como año, se toman las
+     columnas que van entre «entidad» y «anio_referencia» y se numeran desde
+     2015, que es el orden canonico de la hoja. Es una deduccion, asi que se
+     marca y se declara en el diagnostico en vez de aplicarse en silencio. */
+  EDICIONES_POR_POSICION = false;
+  if (!anios.length){
+    var iEnt = (idx['entidad'] !== undefined) ? idx['entidad'] : 6;
+    var iFin = (idx['anio_referencia'] !== undefined) ? idx['anio_referencia']
+                                                      : Math.min(nombres.length, iEnt + 13);
+    for (var k2 = iEnt + 1; k2 < iFin; k2++){
+      anios.push({ anio: 2015 + (k2 - iEnt - 1), col: k2 });
+    }
+    if (anios.length) EDICIONES_POR_POSICION = true;
+  }
+
   anios.sort(function(a, b){ return a.anio - b.anio; });
+  ENCABEZADO_LEIDO = nombres.slice();
   return { idx: idx, anios: anios, inicio: inicio };
 }
 
@@ -2117,7 +2163,10 @@ function normalizar(filas){
     }
     if (!ambito) continue;
 
-    var uni = String(celda(f, mapa, 'unidad') || '').trim() || 'porcentaje';
+    /* La unidad manda sobre la lectura del numero: si llega con mayusculas o
+       espacios, aNumero() tomaria la rama equivocada y una coma decimal se
+       convertiria en separador de millares. */
+    var uni = limpiaNombre(celda(f, mapa, 'unidad')).toLowerCase() || 'porcentaje';
     if (!reg_x_id[id]){
       reg_x_id[id] = {
         id: id,
@@ -2234,6 +2283,24 @@ function pedirCSV(forzar){
 function aplicar(filas, canal){
   var base = normalizar(filas);
   if (base.length < 10) throw new Error('la hoja devolvió muy pocos renglones');
+
+  /* Una hoja con indicadores pero sin una sola cifra no es una lectura buena:
+     significa que las columnas de edicion no se reconocieron. Se rechaza para
+     que entre el canal alterno y, si tampoco, la copia local completa. Antes
+     esto dejaba la vista en un aviso sin salida. */
+  var cifras = 0;
+  base.forEach(function(r){
+    EDICIONES.forEach(function(e){
+      if (r.JAL[e] !== undefined) cifras++;
+      if (r.NAC[e] !== undefined) cifras++;
+    });
+  });
+  if (!cifras){
+    throw new Error('se leyeron ' + base.length +
+      ' indicadores pero ninguna cifra; encabezado recibido: ' +
+      ENCABEZADO_LEIDO.slice(0, 23).join(' | '));
+  }
+
   BASE = base;
   fuenteDatos = canal;
 }
@@ -2266,9 +2333,18 @@ function preparar(){
   if (!bloqueSel || BLOQUES.indexOf(bloqueSel) === -1) bloqueSel = BLOQUES[0];
 
   var eds = edicionesConDato();
+  if (!eds.length && fuenteDatos !== 'respaldo'){
+    /* Salvavidas: si por lo que sea se llego hasta aqui sin cifras, se cae a
+       la copia local en lugar de dejar la vista en blanco. */
+    usarRespaldo('La hoja se leyó pero no se reconoció ninguna columna de edición. ' +
+                 'Encabezado recibido: ' + ENCABEZADO_LEIDO.slice(0, 23).join(' | ') + '.');
+    eds = edicionesConDato();
+  }
   if (!eds.length){
     $('cargandoEV').classList.add('oculto');
-    $('avisoErrorEVTxt').textContent = 'La base se leyó pero no contiene ninguna cifra.';
+    $('avisoErrorEVTxt').textContent =
+      'La base se leyó pero no contiene ninguna cifra. Encabezado recibido: ' +
+      ENCABEZADO_LEIDO.slice(0, 23).join(' | ') + '.';
     $('avisoErrorEV').style.display = 'flex';
     return;
   }
@@ -2872,6 +2948,10 @@ function pintarDiagnostico(){
       'JAL ' + edJal + ' · NAC ' + edNac + '</strong></div>' +
     '<div><span>Ediciones con dato</span><strong>' +
       (eds.length ? eds[0] + '–' + eds[eds.length-1] : '—') + '</strong></div>' +
+    '<div><span>Columnas de edición</span><strong' +
+      (EDICIONES_POR_POSICION ? ' style="color:#B06A08"' : '') + '>' +
+      EDICIONES.length + (EDICIONES_POR_POSICION ? ' por posición' : ' por encabezado') +
+      '</strong></div>' +
     '<div><span>Con advertencia</span><strong>' + conNota + '</strong></div>' +
     '<div><span>Tasas fuera de rango</span><strong' +
       (sospechosas ? ' style="color:#C0392B"' : '') + '>' + sospechosas + '</strong></div>';
