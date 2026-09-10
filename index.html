@@ -504,6 +504,11 @@ footer p{margin:4px 0}
 .ev-tabla td.ev-td-ind{overflow-wrap:anywhere}
 .ev-notas td{white-space:normal}
 
+/* T10 — taller donde se dibujan las graficas del documento de Word. Vive
+   fuera de la pantalla: no es una captura de la vista, son graficas hechas
+   a proposito para el archivo, a resolucion alta. */
+#evTallerGraficas{position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden}
+
 .ev-lista-caja{overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
 .ev-lista-caja::-webkit-scrollbar{width:8px}
 .ev-lista-caja::-webkit-scrollbar-track{background:transparent}
@@ -568,6 +573,7 @@ footer p{margin:4px 0}
       <div id="accENVIPE" class="acc-grupo" hidden>
         <button class="btn btn-fantasma" id="btnActualizarEV" type="button">&#8635; Actualizar datos</button>
         <button class="btn btn-primario" id="btnDescargarEV" type="button">&#8595; Descargar imagen</button>
+        <button class="btn btn-primario" id="btnAnalisisEV" type="button">&#8595; Descargar an&aacute;lisis (Word)</button>
       </div>
     </div>
   </div>
@@ -2156,12 +2162,17 @@ function normalizar(filas){
                 .trim().replace(/^0+(?=\d)/, '');
     var ambito = (cve === '0' || cve === '') ? null : (cve === '14' ? 'JAL' : null);
     if (cve === '0') ambito = 'NAC';
+    var nomEnt = String(celda(f, mapa, 'entidad') || '').trim();
     if (!ambito){
-      var ent = String(celda(f, mapa, 'entidad') || '').trim().toLowerCase();
+      var ent = nomEnt.toLowerCase();
       if (ent.indexOf('nacional') === 0) ambito = 'NAC';
       else if (ent.indexOf('jalisco') === 0) ambito = 'JAL';
     }
-    if (!ambito) continue;
+    /* T10 — el resto de las entidades se conserva aparte, en reg.ENT. El
+       tablero sigue trabajando solo con JAL y NAC; el analisis en Word usa
+       ENT para extender la mancuerna a las 32 entidades el dia que la hoja
+       las tenga. Si no las tiene, ENT queda vacio y no cambia nada. */
+    if (!ambito && !/^\d{1,2}$/.test(cve)) continue;
 
     /* La unidad manda sobre la lectura del numero: si llega con mayusculas o
        espacios, aNumero() tomaria la rama equivocada y una coma decimal se
@@ -2181,12 +2192,18 @@ function normalizar(filas){
       orden.push(id);
     }
     var reg = reg_x_id[id];
+    var cveN = (cve === '0' ? '00' : (cve.length === 1 ? '0' + cve : cve));
+    if (!reg.ENT) reg.ENT = {};
+    if (!reg.ENT[cveN]) reg.ENT[cveN] = { nombre: nomEnt || cveN, val: {} };
     if (mapa.anios.length){
       for (var k = 0; k < mapa.anios.length; k++){
         var val = aNumero(f[mapa.anios[k].col], uni);
-        if (val !== null) reg[ambito][mapa.anios[k].anio] = val;
+        if (val === null) continue;
+        reg.ENT[cveN].val[mapa.anios[k].anio] = val;
+        if (ambito) reg[ambito][mapa.anios[k].anio] = val;
       }
     }
+    if (!ambito) continue;
     var nt = String(celda(f, mapa, 'nota') || '').trim();
     if (nt && reg.nota.indexOf(nt) === -1){
       reg.nota += (reg.nota ? ' · ' : '') + (ambito === 'JAL' ? 'Jalisco: ' : 'Nacional: ') + nt;
@@ -2966,6 +2983,733 @@ function pintarDiagnostico(){
     : '<tr><td>Ninguna advertencia registrada en la base.</td></tr>';
 }
 
+/* ============================================================
+   T10 — Analisis ENVIPE en Word.
+
+   Arma un documento de cuatro paginas con la edicion mas reciente que
+   tenga dato y la inmediata anterior. Ninguna edicion esta escrita en el
+   codigo: el dia que la hoja gane 2027, el analisis sera 2027 contra 2026.
+
+   Dos canales, igual que la lectura de datos: .docx real con la biblioteca
+   docx si el CDN responde, y HTML-Word si no. Nunca queda sin salida.
+   ============================================================ */
+
+var CDN_DOCX = [
+  'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',
+  'https://unpkg.com/docx@8.5.0/build/index.umd.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.js'
+];
+
+var TINTA = '1B3A8C', GRIS = '8E9AA8', TEAL = '2E9E8F',
+    HUESO = 'E4E8EE', TENUE = '5A6472', OSCURO = '0A2A5E';
+
+function cargarDocx(){
+  if (window.docx && window.docx.Packer) return Promise.resolve(window.docx);
+  var i = 0;
+  function intentar(){
+    if (i >= CDN_DOCX.length) return Promise.reject(new Error('ningún CDN respondió'));
+    var url = CDN_DOCX[i++];
+    return new Promise(function(res, rej){
+      var et = document.createElement('script');
+      var reloj = setTimeout(function(){ limpiar(); rej(new Error('tiempo agotado')); }, 12000);
+      function limpiar(){ clearTimeout(reloj); if (et.parentNode) et.parentNode.removeChild(et); }
+      et.onload = function(){
+        limpiar();
+        (window.docx && window.docx.Packer) ? res(window.docx) : rej(new Error('sin Packer'));
+      };
+      et.onerror = function(){ limpiar(); rej(new Error('no cargó')); };
+      et.src = url;
+      (document.head || document.documentElement).appendChild(et);
+    }).catch(intentar);
+  }
+  return intentar();
+}
+
+/* ---------- utilidades de datos ---------- */
+
+function porId(id){
+  for (var i = 0; i < BASE.length; i++) if (BASE[i].id === id) return BASE[i];
+  return null;
+}
+function val(id, ambito, ed){
+  var r = porId(id);
+  if (!r) return undefined;
+  return r[ambito][ed];
+}
+function existeCon(id, ed){ return val(id, 'JAL', ed) !== undefined; }
+
+/* Las dos ediciones del analisis: la ultima con dato y la anterior. */
+function edicionesAnalisis(){
+  var eds = edicionesConDato();
+  return { act: eds[eds.length - 1], prev: eds.length > 1 ? eds[eds.length - 2] : null };
+}
+
+/* Redaccion automatica de un movimiento. La direccion favorable del
+   indicador decide si el cambio se describe como avance o retroceso. */
+function frase(reg, ed, edp){
+  var a = reg.JAL[ed], b = edp !== null ? reg.JAL[edp] : undefined;
+  var nom = reg.nombre;
+  if (a === undefined) return null;
+  if (b === undefined) return nom + ' se ubicó en ' + fmt(a, reg.unidad) +
+                              ', sin cifra comparable en la edición anterior';
+  var d = a - b;
+  if (Math.abs(d) < 0.05) return nom + ' se mantuvo prácticamente sin cambio en ' + fmt(a, reg.unidad);
+  var sube = d > 0;
+  var sentido = (reg.dir === 'baja') ? (sube ? 'desfavorable' : 'favorable')
+              : (reg.dir === 'sube') ? (sube ? 'favorable' : 'desfavorable') : 'neutro';
+  var verbo = sube ? 'aumentó' : 'disminuyó';
+  var txt = nom + ' ' + verbo + ' de ' + fmt(b, reg.unidad) + ' a ' + fmt(a, reg.unidad) +
+            ' (' + fmtDif(d, reg.unidad) + ')';
+  if (sentido !== 'neutro') txt += ', movimiento ' + sentido;
+  return txt;
+}
+
+function difTexto(id, ambito, ed, edp){
+  var r = porId(id);
+  if (!r) return '—';
+  var a = r[ambito][ed], b = edp !== null ? r[ambito][edp] : undefined;
+  if (a === undefined || b === undefined) return '—';
+  return fmtDif(a - b, r.unidad);
+}
+function celdaVal(id, ambito, ed){
+  var r = porId(id);
+  if (!r || r[ambito][ed] === undefined) return '—';
+  return fmt(r[ambito][ed], r.unidad);
+}
+
+/* Autoridades: se descubren de la propia base, no de una lista fija. */
+function autoridades(){
+  var m = {};
+  BASE.forEach(function(r){
+    var mc = r.id.match(/^CONF_(.+)$/), mr = r.id.match(/^CORR_(.+)$/);
+    var suf = mc ? mc[1] : (mr ? mr[1] : null);
+    if (!suf) return;
+    if (!m[suf]) m[suf] = { suf: suf, nombre: (r.nombre.split(': ')[1] || corta(r.nombre)) };
+    if (mc) m[suf].conf = r;
+    if (mr) m[suf].corr = r;
+  });
+  return Object.keys(m).map(function(k){ return m[k]; });
+}
+
+/* Preparado para los indicadores que aun no existen en la hoja.
+   Cuando aparezcan con estas claves, las donas pasan solas de agregado a
+   desglose y se agrega la pagina de desempeno. Sin tocar codigo. */
+function nivelesDe(prefijos, suf, ed){
+  var out = [];
+  for (var i = 0; i < prefijos.length; i++){
+    var v = val(prefijos[i] + suf, 'JAL', ed);
+    if (v === undefined) return null;
+    out.push(v);
+  }
+  return out;
+}
+function nivelesConfianza(suf, ed){
+  return nivelesDe(['CONF_MUCHA_', 'CONF_ALGO_', 'DESCONF_ALGO_', 'DESCONF_MUCHA_'], suf, ed);
+}
+function nivelesDesempeno(suf, ed){
+  return nivelesDe(['DESEM_MUY_', 'DESEM_ALGO_', 'DESEM_POCO_', 'DESEM_NADA_'], suf, ed);
+}
+function hayDesempeno(ed){
+  var a = autoridades();
+  for (var i = 0; i < a.length; i++) if (nivelesDesempeno(a[i].suf, ed)) return true;
+  return false;
+}
+/* Entidades distintas de Jalisco y Nacional, si la hoja llega a tenerlas. */
+function entidadesDe(id, ed){
+  var r = porId(id);
+  if (!r || !r.ENT) return [];
+  return Object.keys(r.ENT).filter(function(c){
+    return c !== '00' && c !== '14' && r.ENT[c].val[ed] !== undefined;
+  }).map(function(c){ return { cve: c, nombre: r.ENT[c].nombre, v: r.ENT[c].val[ed] }; });
+}
+
+/* ---------- graficas fuera de pantalla ---------- */
+
+function taller(){
+  var t = document.getElementById('evTallerGraficas');
+  if (!t){
+    t = document.createElement('div');
+    t.id = 'evTallerGraficas';
+    t.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(t);
+  }
+  return t;
+}
+function lienzo(w, h){
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h; c.style.width = w + 'px'; c.style.height = h + 'px';
+  taller().appendChild(c);
+  return c;
+}
+function quitar(c){ if (c.parentNode) c.parentNode.removeChild(c); }
+
+/* Dibuja una configuracion de Chart.js en un lienzo suelto y devuelve el PNG.
+   No es una captura de la pantalla: es una grafica hecha para el documento,
+   a resolucion alta y con tipografia mayor. */
+function png(cfg, w, h){
+  var c = lienzo(w, h);
+  cfg.options = cfg.options || {};
+  cfg.options.responsive = false;
+  cfg.options.maintainAspectRatio = false;
+  cfg.options.animation = false;
+  var g = new Chart(c, cfg);
+  g.update('none');
+  var url = c.toDataURL('image/png');
+  g.destroy(); quitar(c);
+  return { url: url, w: w, h: h };
+}
+
+function ejeBase(tam){
+  return { ticks:{ font:{ size: tam || 20 }, color:'#3B4654' }, grid:{ color:'#E7EBF1' } };
+}
+
+/* Rejilla de donas al estilo de las laminas del INEGI: cada autoridad con su
+   anillo exterior (edicion actual) y su anillo interior (edicion previa). */
+function rejillaDonas(items, cols, anchoC, altoC, etiqueta){
+  var filas = Math.ceil(items.length / cols);
+  var m = document.createElement('canvas');
+  m.width = cols * anchoC; m.height = filas * altoC + 60;
+  var x = m.getContext('2d');
+  x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, m.width, m.height);
+
+  items.forEach(function(it, i){
+    var cx = (i % cols) * anchoC, cy = Math.floor(i / cols) * altoC;
+    x.fillStyle = '#' + OSCURO; x.font = '600 21px Arial'; x.textAlign = 'center';
+    envolver(it.titulo, 20).slice(0, 2).forEach(function(l, k){
+      x.fillText(l, cx + anchoC / 2, cy + 28 + k * 24);
+    });
+
+    var dw = anchoC - 26, dh = altoC - 96;
+    var datasets = [];
+    if (it.niveles){
+      datasets.push({ data: it.niveles.concat([Math.max(0, 100 - it.niveles.reduce(function(a,b){return a+b;},0))]),
+                      backgroundColor:['#12463F','#'+TEAL,'#E8913C','#C9385E','#'+HUESO],
+                      borderWidth:0 });
+    } else {
+      datasets.push({ data:[it.act, Math.max(0, 100 - it.act)],
+                      backgroundColor:['#'+TINTA, '#'+HUESO], borderWidth:0 });
+    }
+    if (it.prev !== null && it.prev !== undefined){
+      datasets.push({ data:[it.prev, Math.max(0, 100 - it.prev)],
+                      backgroundColor:['#'+TEAL, '#EEF1F5'], borderWidth:0 });
+    }
+    var c = lienzo(dw, dh);
+    var g = new Chart(c, { type:'doughnut', data:{ datasets: datasets },
+      options:{ responsive:false, maintainAspectRatio:false, animation:false,
+                cutout:'56%', plugins:{ legend:{ display:false }, tooltip:{ enabled:false } } } });
+    g.update('none');
+    x.drawImage(c, cx + 13, cy + 80);
+    g.destroy(); quitar(c);
+
+    x.fillStyle = '#' + (it.niveles ? TEAL : TINTA);
+    x.font = '700 34px Arial'; x.textAlign = 'center';
+    x.fillText(it.centro, cx + 13 + dw / 2, cy + 80 + dh / 2 + 12);
+  });
+
+  /* leyenda al pie */
+  var ly = filas * altoC + 34;
+  x.textAlign = 'left'; x.font = '400 20px Arial';
+  var lx = 24;
+  etiqueta.forEach(function(e){
+    x.fillStyle = '#' + e.c; x.fillRect(lx, ly - 14, 20, 20);
+    x.fillStyle = '#' + TENUE; x.fillText(e.t, lx + 28, ly + 3);
+    lx += 28 + x.measureText(e.t).width + 34;
+  });
+  return { url: m.toDataURL('image/png'), w: m.width, h: m.height };
+}
+
+/* ---------- armado del contenido ---------- */
+
+function bloquesAnalisis(){
+  var e = edicionesAnalisis(), ed = e.act, edp = e.prev;
+  var B = [];
+  var hoy = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' });
+
+  /* ============ PAGINA 1 — PANORAMA ============ */
+  B.push({ t:'h1', v:'Análisis ENVIPE ' + ed + ' · Jalisco' });
+  B.push({ t:'h2', v:'Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública' });
+  B.push({ t:'meta', v:'Coordinación General Estratégica de Seguridad · Gobierno de Jalisco · Generado el ' + hoy });
+
+  var ancla = ['PREV_HOGARES','TASA_VICTIMAS','TASA_DEL_TOTAL','CIFRA_NEGRA',
+               'COSTO_TOTAL_MMDP','COSTO_PROMEDIO_PERSONA'];
+  var filas = ancla.map(function(id){
+    var r = porId(id);
+    return [ r ? r.nombre : id,
+             celdaVal(id, 'JAL', ed),
+             edp !== null ? celdaVal(id, 'JAL', edp) : '—',
+             difTexto(id, 'JAL', ed, edp),
+             celdaVal(id, 'NAC', ed) ];
+  });
+  B.push({ t:'h3', v:'Cifras ancla de la edición' });
+  B.push({ t:'tabla',
+           cab:['Indicador', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp),
+                'Variación', 'Nacional ' + ed],
+           filas: filas, anchos:[38, 14, 14, 14, 20] });
+
+  /* redaccion automatica: los movimientos mas grandes de la edicion */
+  var movs = BASE.filter(function(r){
+    return r.unidad === 'porcentaje' && r.JAL[ed] !== undefined &&
+           edp !== null && r.JAL[edp] !== undefined;
+  }).map(function(r){ return { r:r, d: r.JAL[ed] - r.JAL[edp] }; })
+    .sort(function(a,b){ return Math.abs(b.d) - Math.abs(a.d); });
+
+  var intro = edp === null
+    ? 'Esta lectura corresponde a la edición ' + ed + '. No hay una edición previa con dato en la base, por lo que no se reportan variaciones.'
+    : 'Esta lectura compara la edición ' + ed + ' contra la ' + edp + ' para Jalisco. De los ' +
+      BASE.length + ' indicadores de la base, ' + movs.length +
+      ' expresados en porcentaje cuentan con cifra en ambas ediciones y admiten comparación directa.';
+  B.push({ t:'p', v: intro });
+
+  if (movs.length){
+    B.push({ t:'p', v:'Los movimientos de mayor magnitud son los siguientes.' });
+    B.push({ t:'lista', v: movs.slice(0, 6).map(function(o){ return frase(o.r, ed, edp); })
+                              .filter(Boolean) });
+    var g1 = png({
+      type:'bar',
+      data:{ labels: movs.slice(0, 10).map(function(o){ return envolver(corta(o.r.nombre), 34); }),
+             datasets:[{ label:'Variación en puntos porcentuales',
+                         data: movs.slice(0, 10).map(function(o){ return +o.d.toFixed(1); }),
+                         backgroundColor: movs.slice(0, 10).map(function(o){
+                           var favorable = (o.r.dir === 'baja') ? o.d < 0 : (o.r.dir === 'sube' ? o.d > 0 : null);
+                           return favorable === null ? '#' + GRIS : (favorable ? '#2E9E8F' : '#C0392B');
+                         }), borderRadius:3 }] },
+      options:{ indexAxis:'y',
+        plugins:{ legend:{ display:false } },
+        scales:{ x: ejeBase(20), y:{ ticks:{ font:{ size:19 }, color:'#3B4654' }, grid:{ display:false } } } }
+    }, 1560, 700);
+    B.push({ t:'img', v:g1, pie:'Los diez movimientos de mayor magnitud entre ' + edp + ' y ' + ed +
+                             '. Verde: movimiento favorable según la dirección deseable del indicador. Rojo: desfavorable.' });
+  }
+
+  /* ============ PAGINA 2 — PERCEPCION DE INSEGURIDAD ============ */
+  B.push({ t:'salto' });
+  B.push({ t:'h1', v:'Percepción de inseguridad' });
+  B.push({ t:'h2', v:'Población de 18 años y más que se siente insegura, por ámbito territorial' });
+
+  var terr = [
+    { id:'PERC_INSEG_ENT', et:'Entidad federativa' },
+    { id:'PERC_INSEG_MUN', et:'Municipio' },
+    { id:'PERC_INSEG_COL', et:'Colonia o localidad' }
+  ].filter(function(o){ return porId(o.id); });
+
+  if (terr.length){
+    var g2 = png({
+      type:'bar',
+      data:{ labels: terr.map(function(o){ return o.et; }),
+             datasets:[
+               { label:'Jalisco ' + ed, data: terr.map(function(o){ return val(o.id,'JAL',ed); }),
+                 backgroundColor:'#' + TINTA, borderRadius:3 },
+               { label:'Jalisco ' + (edp === null ? '' : edp),
+                 data: terr.map(function(o){ return edp === null ? null : val(o.id,'JAL',edp); }),
+                 backgroundColor:'#7C93C9', borderRadius:3 },
+               { label:'Nacional ' + ed, data: terr.map(function(o){ return val(o.id,'NAC',ed); }),
+                 backgroundColor:'#' + GRIS, borderRadius:3 }
+             ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
+                scales:{ x:{ ticks:{ font:{ size:21 }, color:'#3B4654' }, grid:{ display:false } },
+                         y: Object.assign({ beginAtZero:true, max:100 }, ejeBase(20)) } }
+    }, 1560, 640);
+    B.push({ t:'img', v:g2, pie:'Porcentaje de población que percibe su entorno como inseguro.' });
+
+    var serie = png({
+      type:'line',
+      data:{ labels: EDICIONES.map(String),
+             datasets: terr.map(function(o, i){
+               var c = ['#' + TINTA, '#E07B24', '#' + TEAL][i % 3];
+               return { label:o.et, borderColor:c, backgroundColor:c, borderWidth:3.4,
+                        pointRadius:4, tension:.25, spanGaps:false,
+                        data: EDICIONES.map(function(a){ var v = val(o.id,'JAL',a); return v === undefined ? null : v; }) };
+             }) },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
+                scales:{ x:{ ticks:{ font:{ size:19 }, color:'#3B4654' }, grid:{ display:false } },
+                         y: Object.assign({ beginAtZero:true, max:100 }, ejeBase(20)) } }
+    }, 1560, 620);
+    B.push({ t:'img', v:serie, pie:'Serie histórica de Jalisco, ' + EDICIONES[0] + '–' + EDICIONES[EDICIONES.length-1] + '.' });
+
+    B.push({ t:'tabla',
+             cab:['Ámbito', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
+             filas: terr.map(function(o){
+               return [o.et, celdaVal(o.id,'JAL',ed),
+                       edp === null ? '—' : celdaVal(o.id,'JAL',edp),
+                       difTexto(o.id,'JAL',ed,edp), celdaVal(o.id,'NAC',ed)];
+             }), anchos:[32, 17, 17, 15, 19] });
+
+    var vE = val('PERC_INSEG_ENT','JAL',ed), vM = val('PERC_INSEG_MUN','JAL',ed),
+        vC = val('PERC_INSEG_COL','JAL',ed);
+    if (vE !== undefined && vM !== undefined && vC !== undefined){
+      B.push({ t:'p', v:'La percepción de inseguridad decrece conforme el ámbito se acerca al entorno inmediato: ' +
+        fmt(vE,'porcentaje') + ' en la entidad, ' + fmt(vM,'porcentaje') + ' en el municipio y ' +
+        fmt(vC,'porcentaje') + ' en la colonia o localidad, una diferencia de ' +
+        Math.abs(vE - vC).toFixed(1) + ' puntos porcentuales entre el extremo estatal y el vecinal. El dato vecinal es el que mide la ' +
+        'experiencia cotidiana; el estatal recoge además la percepción formada por la conversación pública.' });
+    }
+    terr.forEach(function(o){
+      var f = frase(porId(o.id), ed, edp);
+      if (f) B.push({ t:'p', v:'· ' + f + '.' });
+    });
+  } else {
+    B.push({ t:'p', v:'La base no contiene los indicadores de percepción de inseguridad por ámbito territorial.' });
+  }
+
+  /* ============ PAGINA 3 — VICTIMIZACION Y COSTOS ============ */
+  B.push({ t:'salto' });
+  B.push({ t:'h1', v:'Victimización y costos del delito' });
+  B.push({ t:'h2', v:'Tasas por cada 100 000 habitantes de 18 años y más' });
+
+  var extra = entidadesDe('TASA_VICTIMAS', ed);
+  var puntos = [];
+  if (extra.length){
+    /* La hoja ya trae mas entidades: la mancuerna se extiende sola. */
+    puntos = [{ et:'Jalisco', vic: val('TASA_VICTIMAS','JAL',ed), del: val('TASA_DEL_TOTAL','JAL',ed) },
+              { et:'Nacional', vic: val('TASA_VICTIMAS','NAC',ed), del: val('TASA_DEL_TOTAL','NAC',ed) }]
+      .concat(extra.map(function(x){
+        var rd = porId('TASA_DEL_TOTAL');
+        return { et:x.nombre, vic:x.v,
+                 del: (rd && rd.ENT && rd.ENT[x.cve]) ? rd.ENT[x.cve].val[ed] : undefined };
+      }));
+    puntos = puntos.filter(function(p){ return p.vic !== undefined && p.del !== undefined; })
+                   .sort(function(a,b){ return b.del - a.del; });
+  } else {
+    puntos = [
+      { et:'Jalisco ' + ed,  vic: val('TASA_VICTIMAS','JAL',ed),  del: val('TASA_DEL_TOTAL','JAL',ed) },
+      { et:'Nacional ' + ed, vic: val('TASA_VICTIMAS','NAC',ed),  del: val('TASA_DEL_TOTAL','NAC',ed) },
+      { et:'Jalisco ' + edp, vic: edp === null ? undefined : val('TASA_VICTIMAS','JAL',edp),
+        del: edp === null ? undefined : val('TASA_DEL_TOTAL','JAL',edp) },
+      { et:'Nacional ' + edp, vic: edp === null ? undefined : val('TASA_VICTIMAS','NAC',edp),
+        del: edp === null ? undefined : val('TASA_DEL_TOTAL','NAC',edp) }
+    ].filter(function(p){ return p.vic !== undefined && p.del !== undefined; });
+  }
+
+  if (puntos.length){
+    var g3 = png({
+      type:'bar',
+      data:{ labels: puntos.map(function(p){ return envolver(p.et, 14); }),
+             datasets:[
+               { label:'', data: puntos.map(function(p){ return [Math.min(p.vic,p.del), Math.max(p.vic,p.del)]; }),
+                 backgroundColor:'#D6DCE5', barPercentage:.16, categoryPercentage:.9, order:3 },
+               { type:'scatter', label:'Víctimas (prevalencia)',
+                 data: puntos.map(function(p, i){ return { x:i, y:p.vic }; }),
+                 backgroundColor:'#' + TEAL, pointRadius:11, order:1 },
+               { type:'scatter', label:'Delitos (incidencia)',
+                 data: puntos.map(function(p, i){ return { x:i, y:p.del }; }),
+                 backgroundColor:'#12305F', pointRadius:11, order:1 }
+             ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:14, usePointStyle:true, padding:20,
+                                    filter:function(i){ return !!i.text; } } } },
+                scales:{ x:{ type:'category', ticks:{ font:{ size:20 }, color:'#3B4654' }, grid:{ display:false } },
+                         y: Object.assign({ beginAtZero:true }, ejeBase(19)) } }
+    }, 1560, 700);
+    B.push({ t:'img', v:g3, pie:'Tasa de víctimas frente a tasa de delitos. La distancia entre ambos puntos expresa cuántos delitos concentra en promedio cada víctima.' });
+  }
+
+  var sexo = ['TASA_VICTIMAS_H','TASA_VICTIMAS_M'].filter(function(id){ return porId(id); });
+  if (sexo.length === 2){
+    var g4 = png({
+      type:'bar',
+      data:{ labels:['Hombres','Mujeres'],
+             datasets:[
+               { label:'Jalisco ' + ed, backgroundColor:'#' + TINTA, borderRadius:3,
+                 data: sexo.map(function(id){ return val(id,'JAL',ed); }) },
+               { label:'Jalisco ' + (edp === null ? '' : edp), backgroundColor:'#7C93C9', borderRadius:3,
+                 data: sexo.map(function(id){ return edp === null ? null : val(id,'JAL',edp); }) },
+               { label:'Nacional ' + ed, backgroundColor:'#' + GRIS, borderRadius:3,
+                 data: sexo.map(function(id){ return val(id,'NAC',ed); }) }
+             ] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
+                scales:{ x:{ ticks:{ font:{ size:21 }, color:'#3B4654' }, grid:{ display:false } },
+                         y: Object.assign({ beginAtZero:true }, ejeBase(19)) } }
+    }, 1560, 560);
+    B.push({ t:'img', v:g4, pie:'Tasa de víctimas por cada 100 000 habitantes, según sexo.' });
+  }
+
+  B.push({ t:'h3', v:'Costos del delito' });
+  B.push({ t:'tabla',
+           cab:['Concepto', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
+           filas:['COSTO_TOTAL_MMDP','COSTO_PROMEDIO_PERSONA'].filter(function(id){ return porId(id); })
+                 .map(function(id){
+                   return [porId(id).nombre, celdaVal(id,'JAL',ed),
+                           edp === null ? '—' : celdaVal(id,'JAL',edp),
+                           difTexto(id,'JAL',ed,edp), celdaVal(id,'NAC',ed)];
+                 }), anchos:[38, 15, 15, 14, 18] });
+
+  var cpJ = val('COSTO_PROMEDIO_PERSONA','JAL',ed), cpN = val('COSTO_PROMEDIO_PERSONA','NAC',ed);
+  if (cpJ !== undefined && cpN !== undefined && cpN > 0){
+    B.push({ t:'p', v:'El costo promedio por persona afectada en Jalisco (' + fmt(cpJ,'pesos') +
+      ') se ubica ' + Math.round((cpJ / cpN - 1) * 100) + '% por encima del promedio nacional (' +
+      fmt(cpN,'pesos') + ').' });
+  }
+  ['TASA_VICTIMAS','TASA_DEL_TOTAL','CIFRA_NEGRA'].forEach(function(id){
+    var r = porId(id); if (!r) return;
+    var f = frase(r, ed, edp); if (f) B.push({ t:'p', v:'· ' + f + '.' });
+  });
+
+  /* ============ PAGINA 4 — CONFIANZA Y CORRUPCION ============ */
+  B.push({ t:'salto' });
+  B.push({ t:'h1', v:'Confianza y percepción de corrupción por autoridad' });
+
+  var auts = autoridades().filter(function(a){
+    return (a.conf && a.conf.JAL[ed] !== undefined) || (a.corr && a.corr.JAL[ed] !== undefined);
+  });
+
+  var conAut = auts.filter(function(a){ return a.conf && a.conf.JAL[ed] !== undefined; })
+                   .sort(function(a,b){ return b.conf.JAL[ed] - a.conf.JAL[ed]; });
+  if (conAut.length){
+    var desglosado = conAut.some(function(a){ return !!nivelesConfianza(a.suf, ed); });
+    var rej = rejillaDonas(conAut.map(function(a){
+      var niv = nivelesConfianza(a.suf, ed);
+      var ident = val('IDENT_' + a.suf, 'JAL', ed);
+      return { titulo:a.nombre, act:a.conf.JAL[ed],
+               prev: edp === null ? null : (niv ? null : a.conf.JAL[edp]),
+               niveles: niv,
+               centro: fmt(niv && ident !== undefined ? ident : a.conf.JAL[ed], 'porcentaje') };
+    }), 4, 380, 340, desglosado
+        ? [{ c:'12463F', t:'Mucha confianza' }, { c:TEAL, t:'Algo de confianza' },
+           { c:'E8913C', t:'Algo de desconfianza' }, { c:'C9385E', t:'Mucha desconfianza' }]
+        : [{ c:TINTA, t:'Confianza ' + ed }, { c:TEAL, t:'Confianza ' + (edp === null ? 'previa' : edp) }]);
+    B.push({ t:'h3', v:'Confianza (mucha + algo) en la autoridad · Jalisco' });
+    B.push({ t:'img', v:rej, pie: desglosado
+      ? 'Desglose por nivel de confianza. La cifra al centro corresponde a la población que identifica a la autoridad.'
+      : 'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' + (edp === null ? 'previa' : edp) +
+        '. La cifra al centro es el valor de ' + ed + '.' });
+  }
+
+  var corrAut = auts.filter(function(a){ return a.corr && a.corr.JAL[ed] !== undefined; })
+                    .sort(function(a,b){ return b.corr.JAL[ed] - a.corr.JAL[ed]; });
+  if (corrAut.length){
+    var rej2 = rejillaDonas(corrAut.map(function(a){
+      var ident = val('IDENT_' + a.suf, 'JAL', ed);
+      return { titulo:a.nombre, act:a.corr.JAL[ed],
+               prev: edp === null ? null : a.corr.JAL[edp],
+               centro: fmt(a.corr.JAL[ed], 'porcentaje'),
+               nota: ident };
+    }), 4, 380, 340,
+      [{ c:TINTA, t:'Percepción de corrupción ' + ed },
+       { c:TEAL, t:'Percepción de corrupción ' + (edp === null ? 'previa' : edp) }]);
+    B.push({ t:'h3', v:'Percepción de corrupción en la autoridad · Jalisco' });
+    B.push({ t:'img', v:rej2, pie:'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' +
+                                  (edp === null ? 'previa' : edp) + '.' });
+  }
+
+  B.push({ t:'tabla',
+           cab:['Autoridad', 'Confianza ' + ed, 'Var.', 'Corrupción ' + ed, 'Var.'],
+           filas: conAut.concat(corrAut.filter(function(a){ return conAut.indexOf(a) === -1; }))
+             .map(function(a){
+               return [a.nombre,
+                 a.conf && a.conf.JAL[ed] !== undefined ? fmt(a.conf.JAL[ed],'porcentaje') : '—',
+                 a.conf ? difTexto(a.conf.id,'JAL',ed,edp) : '—',
+                 a.corr && a.corr.JAL[ed] !== undefined ? fmt(a.corr.JAL[ed],'porcentaje') : '—',
+                 a.corr ? difTexto(a.corr.id,'JAL',ed,edp) : '—'];
+             }), anchos:[36, 16, 16, 16, 16] });
+
+  /* Declaracion de lo que la base todavia no cubre. */
+  var pendientes = [];
+  if (!conAut.some(function(a){ return !!nivelesConfianza(a.suf, ed); }))
+    pendientes.push('el desglose por nivel de confianza y desconfianza');
+  if (val('IDENT_' + (auts[0] ? auts[0].suf : 'X'), 'JAL', ed) === undefined)
+    pendientes.push('la proporción de población que identifica a cada autoridad');
+  if (!hayDesempeno(ed)) pendientes.push('la percepción de desempeño de las autoridades');
+  if (!entidadesDe('TASA_VICTIMAS', ed).length) pendientes.push('las tasas del resto de las entidades federativas');
+  if (pendientes.length){
+    B.push({ t:'nota', v:'La base de esta edición no incluye ' + pendientes.join('; ') +
+      '. Estos apartados se incorporan automáticamente en cuanto los indicadores se capturen en la hoja de origen.' });
+  }
+
+  /* ============ PAGINA 5 (condicional) — DESEMPENO ============ */
+  if (hayDesempeno(ed)){
+    B.push({ t:'salto' });
+    B.push({ t:'h1', v:'Percepción de desempeño por autoridad' });
+    var des = auts.filter(function(a){ return !!nivelesDesempeno(a.suf, ed); });
+    var rej3 = rejillaDonas(des.map(function(a){
+      var ident = val('IDENT_' + a.suf, 'JAL', ed);
+      var niv = nivelesDesempeno(a.suf, ed);
+      return { titulo:a.nombre, act:niv[0] + niv[1], prev:null, niveles:niv,
+               centro: fmt(ident !== undefined ? ident : niv[0] + niv[1], 'porcentaje') };
+    }), 4, 380, 340,
+      [{ c:'12463F', t:'Muy efectivo' }, { c:TEAL, t:'Algo efectivo' },
+       { c:'E8913C', t:'Poco efectivo' }, { c:'C9385E', t:'Nada efectivo' }]);
+    B.push({ t:'img', v:rej3, pie:'La cifra al centro corresponde a la población que identifica a la autoridad.' });
+  }
+
+  B.push({ t:'nota', v:'Fuente: INEGI, Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública ' +
+    '(ENVIPE), edición ' + ed + '. Elaboración de la Coordinación General Estratégica de Seguridad, Gobierno de Jalisco. ' +
+    'Una celda vacía significa dato no disponible en la base, nunca un valor de cero. Los indicadores de victimización, ' +
+    'costos, denuncia y comportamientos se refieren al año previo a la edición; los de percepción, confianza y corrupción, ' +
+    'al año de la edición.' });
+
+  return { bloques: B, ed: ed, edp: edp };
+}
+
+/* ---------- salida 1: .docx real ---------- */
+
+/* La biblioteca acepta el base64 tal cual; convertirlo a Uint8Array no aporta
+   nada y ademas rompe cuando el arreglo nace en otro contexto de ejecucion. */
+function base64De(dataURL){ return dataURL.split(',')[1]; }
+
+function aDocx(D, res){
+  var hijos = [];
+  var ANCHO = 640;   /* puntos utiles de la caja de texto */
+
+  function parr(txt, o){
+    o = o || {};
+    return new D.Paragraph({
+      alignment: o.centro ? D.AlignmentType.CENTER : D.AlignmentType.LEFT,
+      spacing:{ before:o.antes || 0, after: o.despues === undefined ? 120 : o.despues },
+      children:[ new D.TextRun({ text: txt, bold: !!o.negrita, size: o.tam || 20,
+                                 color: o.color || '2A3340', font:'Calibri' }) ]
+    });
+  }
+
+  res.bloques.forEach(function(b){
+    if (b.t === 'salto'){ hijos.push(new D.Paragraph({ children:[ new D.PageBreak() ] })); return; }
+    if (b.t === 'h1'){ hijos.push(parr(b.v, { negrita:true, tam:34, color:TINTA, despues:60 })); return; }
+    if (b.t === 'h2'){ hijos.push(parr(b.v, { negrita:true, tam:22, color:OSCURO, despues:60 })); return; }
+    if (b.t === 'h3'){ hijos.push(parr(b.v, { negrita:true, tam:24, color:TINTA, antes:180, despues:80 })); return; }
+    if (b.t === 'meta'){ hijos.push(parr(b.v, { tam:17, color:TENUE, despues:200 })); return; }
+    if (b.t === 'p'){ hijos.push(parr(b.v, { tam:20 })); return; }
+    if (b.t === 'nota'){ hijos.push(parr(b.v, { tam:15, color:TENUE, antes:160 })); return; }
+    if (b.t === 'lista'){
+      b.v.forEach(function(l){ hijos.push(parr('•  ' + l + '.', { tam:19, despues:70 })); });
+      return;
+    }
+    if (b.t === 'img'){
+      var alto = Math.round(ANCHO * b.v.h / b.v.w);
+      hijos.push(new D.Paragraph({
+        alignment: D.AlignmentType.CENTER, spacing:{ before:120, after:60 },
+        children:[ new D.ImageRun({ data: base64De(b.v.url),
+                                    transformation:{ width:ANCHO, height:alto } }) ] }));
+      if (b.pie) hijos.push(parr(b.pie, { tam:15, color:TENUE, centro:false, despues:160 }));
+      return;
+    }
+    if (b.t === 'tabla'){
+      function celda(txt, cab, ancho){
+        return new D.TableCell({
+          width:{ size:ancho, type:D.WidthType.PERCENTAGE },
+          shading: cab ? { fill:'EEF2F8' } : undefined,
+          margins:{ top:60, bottom:60, left:90, right:90 },
+          children:[ new D.Paragraph({ spacing:{ before:0, after:0 },
+            children:[ new D.TextRun({ text:String(txt), bold:!!cab, size:17,
+                                       color: cab ? OSCURO : '2A3340', font:'Calibri' }) ] }) ]
+        });
+      }
+      var renglones = [ new D.TableRow({ tableHeader:true,
+        children: b.cab.map(function(c, i){ return celda(c, true, b.anchos[i]); }) }) ];
+      b.filas.forEach(function(f){
+        renglones.push(new D.TableRow({ children: f.map(function(c, i){ return celda(c, false, b.anchos[i]); }) }));
+      });
+      hijos.push(new D.Table({ width:{ size:100, type:D.WidthType.PERCENTAGE }, rows: renglones }));
+      hijos.push(parr('', { despues:140 }));
+      return;
+    }
+  });
+
+  return new D.Document({
+    creator:'Coordinación General Estratégica de Seguridad · Gobierno de Jalisco',
+    title:'Análisis ENVIPE ' + res.ed + ' · Jalisco',
+    sections:[{ properties:{ page:{ margin:{ top:720, right:720, bottom:720, left:720 } } },
+                children: hijos }]
+  });
+}
+
+/* ---------- salida 2: HTML que Word abre (respaldo) ---------- */
+
+function aHTMLWord(res){
+  var p = [];
+  res.bloques.forEach(function(b){
+    if (b.t === 'salto'){ p.push('<br clear="all" style="page-break-before:always">'); return; }
+    if (b.t === 'h1'){ p.push('<h1>' + esc(b.v) + '</h1>'); return; }
+    if (b.t === 'h2'){ p.push('<h2>' + esc(b.v) + '</h2>'); return; }
+    if (b.t === 'h3'){ p.push('<h3>' + esc(b.v) + '</h3>'); return; }
+    if (b.t === 'meta'){ p.push('<p class="meta">' + esc(b.v) + '</p>'); return; }
+    if (b.t === 'p'){ p.push('<p>' + esc(b.v) + '</p>'); return; }
+    if (b.t === 'nota'){ p.push('<p class="nota">' + esc(b.v) + '</p>'); return; }
+    if (b.t === 'lista'){
+      p.push('<ul>' + b.v.map(function(l){ return '<li>' + esc(l) + '.</li>'; }).join('') + '</ul>');
+      return;
+    }
+    if (b.t === 'img'){
+      p.push('<p class="fig"><img src="' + b.v.url + '" width="640"></p>');
+      if (b.pie) p.push('<p class="pie">' + esc(b.pie) + '</p>');
+      return;
+    }
+    if (b.t === 'tabla'){
+      p.push('<table><tr>' + b.cab.map(function(c, i){
+        return '<th width="' + b.anchos[i] + '%">' + esc(c) + '</th>'; }).join('') + '</tr>' +
+        b.filas.map(function(f){
+          return '<tr>' + f.map(function(c){ return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</table>');
+      return;
+    }
+  });
+  return '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+    'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><title>Análisis ENVIPE ' + res.ed + '</title>' +
+    '<style>@page{size:21cm 29.7cm;margin:1.6cm}' +
+    'body{font-family:Calibri,Arial,sans-serif;color:#2A3340;font-size:10.5pt}' +
+    'h1{color:#1B3A8C;font-size:19pt;margin:0 0 4pt}' +
+    'h2{color:#0A2A5E;font-size:12pt;margin:0 0 4pt}' +
+    'h3{color:#1B3A8C;font-size:13pt;margin:14pt 0 5pt}' +
+    '.meta{color:#5A6472;font-size:9pt;margin:0 0 12pt}' +
+    '.nota{color:#5A6472;font-size:8pt}' +
+    '.pie{color:#5A6472;font-size:8pt;margin:2pt 0 12pt}' +
+    '.fig{margin:8pt 0 2pt}' +
+    'table{border-collapse:collapse;width:100%;margin:6pt 0 12pt}' +
+    'th{background:#EEF2F8;color:#0A2A5E;font-size:9pt;text-align:left;padding:4pt 6pt;border:1px solid #D5DCE6}' +
+    'td{font-size:9pt;padding:4pt 6pt;border:1px solid #D5DCE6}' +
+    'li{margin-bottom:3pt}</style></head><body>' + p.join('') + '</body></html>';
+}
+
+/* ---------- orquestacion ---------- */
+
+function bajar(blob, nombre){
+  var u = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = u; a.download = nombre;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+}
+
+function generarAnalisis(){
+  var btn = $('btnAnalisisEV');
+  if (btn.dataset.trabajando === '1') return;
+  btn.dataset.trabajando = '1';
+  var texto = btn.textContent;
+  btn.textContent = 'Preparando…';
+  btn.disabled = true;
+
+  function terminar(msg){
+    btn.textContent = msg || texto;
+    btn.disabled = false;
+    btn.dataset.trabajando = '0';
+    if (msg) setTimeout(function(){ btn.textContent = texto; }, 4000);
+  }
+
+  /* Las graficas se dibujan primero: si algo falla, falla antes de bajar nada. */
+  var res;
+  try {
+    res = bloquesAnalisis();
+  } catch (e){
+    terminar('Error al armar');
+    console.error(e);
+    return;
+  }
+  var nombre = 'Analisis_ENVIPE_' + res.ed + '_Jalisco';
+
+  cargarDocx().then(function(D){
+    btn.textContent = 'Generando…';
+    return D.Packer.toBlob(aDocx(D, res)).then(function(blob){
+      bajar(blob, nombre + '.docx');
+      terminar();
+    });
+  }).catch(function(e){
+    /* Respaldo: HTML que Word abre de forma nativa. */
+    console.warn('docx no disponible, se usa HTML-Word:', e && e.message);
+    var blob = new Blob(['\ufeff' + aHTMLWord(res)], { type:'application/msword' });
+    bajar(blob, nombre + '.doc');
+    terminar('Descargado (.doc)');
+  });
+}
+
 /* ---------- 8. Eventos ---------- */
 function enlazar(){
   $('pestanasEV').addEventListener('click', function(ev){
@@ -3010,6 +3754,8 @@ function enlazar(){
       b.setAttribute('aria-pressed', String(!visible));
     });
   }
+
+  $('btnAnalisisEV').addEventListener('click', generarAnalisis);
 
   $('evChecks').addEventListener('click', function(ev){
     var b = ev.target.closest && ev.target.closest('.ev-check');
