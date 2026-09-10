@@ -2020,6 +2020,17 @@ function num(v){
     { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+/* Una razon calculada (un cociente) no es un dato de la encuesta: no tiene
+   decimales "verdaderos" que conservar, tiene los que produzca la division.
+   Esas van a dos decimales exactos. La regla de no redondear protege lo que
+   viene de la hoja y las diferencias, que son exactas; no convierte en dato
+   el residuo de un cociente. */
+function num2(v){
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  return Number(v).toLocaleString('es-MX',
+    { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+
 function fmt(v, unidad){
   if (v === null || v === undefined) return '—';
   if (unidad === 'porcentaje') return num(v) + '%';
@@ -2681,7 +2692,7 @@ function pintarTarjetas(regs, ed){
   $('evTarjetas').innerHTML = con.slice(0,4).map(function(o){
     var cl = claseDif(o.d, o.r.dir);
     var rel = (o.d !== 0 && o.r.unidad !== 'porcentaje' && o.r.JAL[o.pe])
-      ? ' (' + (o.d>0?'+':'−') + num(Math.abs(o.d / o.r.JAL[o.pe] * 100)) + '%)' : '';
+      ? ' (' + (o.d>0?'+':'−') + num2(Math.abs(o.d / o.r.JAL[o.pe] * 100)) + '%)' : '';
     return '<div class="tarjeta">' +
       '<h3 title="' + esc(o.r.nombre) + '">' + esc(corta(o.r.nombre)) + '</h3>' +
       '<div class="grande">' + fmt(o.v, o.r.unidad) + '</div>' +
@@ -3248,72 +3259,228 @@ function rejillaDonas(items, cols, anchoC, altoC, etiqueta){
 
 /* ---------- armado del contenido ---------- */
 
-function bloquesAnalisis(){
+/* T12 — triaje editorial. Cada bloque nace con un color que es una
+   instruccion de edicion, no un adorno:
+     N  negro    importante y necesario, se queda
+     V  verde    importante, puede borrarse
+     A  naranja  relleno, conviene borrarlo
+   Borrando V y A el documento debe quedar en cinco paginas presentables.
+   Los bloques que deben morir juntos comparten 'g' (grupo). */
+var C_NEGRO = '1A1A1A', C_VERDE = '156D3C', C_NARANJA = 'C2610A', C_AZUL = TINTA;
+function colorDe(c){ return c === 'V' ? C_VERDE : (c === 'A' ? C_NARANJA : C_NEGRO); }
+
+/* Presupuesto de espacio. La caja util de una A4 con margenes de 0.5" mide
+   unos 770 puntos de alto. Las imagenes se miden por su alto ya escalado y
+   el texto por renglones. No es tipografia exacta, es una cota superior
+   deliberadamente conservadora: sirve para no pasarse, no para maquetar. */
+var ANCHO_IMG = 640, ALTO_PAGINA = 770;
+
+function altoBloque(b){
+  function renglones(txt, porRenglon){
+    return Math.max(1, Math.ceil(String(txt || '').length / porRenglon));
+  }
+  switch (b.t){
+    case 'h1':      return 32;
+    case 'h2':      return 20;
+    case 'h3':      return 28;
+    case 'meta':    return 16;
+    case 'leyenda': return 58;
+    case 'p':       return renglones(b.v, 95) * 14 + 8;
+    case 'nota':    return renglones(b.v, 115) * 11 + 8;
+    case 'lista':   return b.v.reduce(function(a, l){ return a + renglones(l, 95) * 13 + 6; }, 0);
+    case 'tabla':   return (b.filas.length + 1) * 20 + 14;
+    case 'img':     return b.v.h / b.v.w * ANCHO_IMG * 0.75 + 10 + renglones(b.pie, 120) * 11;
+    default:        return 0;
+  }
+}
+
+function cuentaPaginas(bloques){
+  var alto = 0, pag = 1;
+  bloques.forEach(function(b){
+    if (b.t === 'salto'){ pag++; alto = 0; return; }
+    var h = altoBloque(b);
+    if (alto + h > ALTO_PAGINA && alto > 0){ pag++; alto = 0; }
+    alto += h;
+  });
+  return pag;
+}
+function soloNegro(bloques){
+  return bloques.filter(function(b){ return b.t === 'salto' || !b.c || b.c === 'N'; });
+}
+
+/* ---------- hallazgos: la lectura para Jalisco ---------- */
+
+/* El motor de la vista ordena por magnitud absoluta dentro de cada bloque.
+   Para elegir entre los nueve bloques eso no sirve: una tasa que se mueve
+   1,044 unidades siempre le ganaria a un porcentaje que se mueve 19 puntos.
+   Aqui el orden es por CAMBIO RELATIVO, que si es comparable entre unidades,
+   con un umbral de entrada para que un indicador que va de 0.5 a 1.0 no
+   encabece la lista por haberse duplicado. */
+function pasaUmbral(unidad, dif, rel){
+  return unidad === 'porcentaje' ? Math.abs(dif) >= 1 : rel >= 3;
+}
+
+function hallazgosJalisco(ed, edp){
+  var mejoras = [], deterioros = [], brechaMal = [], brechaBien = [];
+  var comparables = 0, favorables = 0, conNota = 0;
+
+  BASE.forEach(function(r){
+    if (r.nota) conNota++;
+    if (r.dir === 'neutro') return;
+    var a = r.JAL[ed];
+    var b = (edp !== null) ? r.JAL[edp] : undefined;
+    var n = r.NAC[ed];
+
+    if (a !== undefined && b !== undefined && b !== 0){
+      var d = a - b, rel = Math.abs(d / b) * 100;
+      if (d !== 0 && pasaUmbral(r.unidad, d, rel)){
+        var fav = (r.dir === 'baja') ? (d < 0) : (d > 0);
+        (fav ? mejoras : deterioros).push({ r:r, d:d, rel:rel, v:a, prev:b });
+      }
+    }
+    if (a !== undefined && n !== undefined){
+      comparables++;
+      var br = a - n, mejor = (r.dir === 'baja') ? (br < 0) : (br > 0);
+      if (mejor) favorables++;
+      if (n !== 0){
+        var relB = Math.abs(br / n) * 100;
+        if (br !== 0 && pasaUmbral(r.unidad, br, relB))
+          (mejor ? brechaBien : brechaMal).push({ r:r, b:br, rel:relB, vj:a, vn:n });
+      }
+    }
+  });
+
+  [mejoras, deterioros, brechaMal, brechaBien].forEach(function(a){
+    a.sort(function(x, y){ return y.rel - x.rel; });
+  });
+
+  return { mejoras:mejoras, deterioros:deterioros, brechaMal:brechaMal,
+           brechaBien:brechaBien, comparables:comparables,
+           favorables:favorables, conNota:conNota };
+}
+
+function txtMovimiento(o, ed, edp){
+  return o.r.nombre + ': de ' + fmt(o.prev, o.r.unidad) + ' en ' + edp + ' a ' +
+    fmt(o.v, o.r.unidad) + ' en ' + ed + ' (' + fmtDif(o.d, o.r.unidad) +
+    ', cambio relativo de ' + num2(o.rel) + '%).';
+}
+function txtBrecha(o){
+  return o.r.nombre + ': Jalisco ' + fmt(o.vj, o.r.unidad) + ' frente a ' +
+    fmt(o.vn, o.r.unidad) + ' del agregado nacional, una distancia de ' +
+    fmtDif(o.b, o.r.unidad) + '.';
+}
+
+function bloquesAnalisis(cupo){
+  cupo = cupo || {};
+  var nNegro = cupo.negro === undefined ? 8 : cupo.negro;
+  var nVerde = cupo.verde === undefined ? 6 : cupo.verde;
+
   var e = edicionesAnalisis(), ed = e.act, edp = e.prev;
   var B = [];
   var hoy = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'long', year:'numeric' });
+  function add(o){ B.push(o); }
+
+  /* ============ LEYENDA DEL TRIAJE — se borra siempre ============ */
+  add({ t:'leyenda', c:'A', g:'leyenda' });
 
   /* ============ PAGINA 1 — PANORAMA ============ */
-  B.push({ t:'h1', v:'Análisis ENVIPE ' + ed + ' · Jalisco' });
-  B.push({ t:'h2', v:'Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública' });
-  B.push({ t:'meta', v:'Coordinación General Estratégica de Seguridad · Gobierno de Jalisco · Generado el ' + hoy });
+  add({ t:'h1', c:'N', azul:true, v:'Análisis ENVIPE ' + ed + ' · Jalisco' });
+  add({ t:'h2', c:'N', azul:true, v:'Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública' });
+  add({ t:'meta', c:'N', v:'Coordinación General Estratégica de Seguridad · Gobierno de Jalisco · Generado el ' + hoy });
 
   var ancla = ['PREV_HOGARES','TASA_VICTIMAS','TASA_DEL_TOTAL','CIFRA_NEGRA',
                'COSTO_TOTAL_MMDP','COSTO_PROMEDIO_PERSONA'];
-  var filas = ancla.map(function(id){
-    var r = porId(id);
-    return [ r ? r.nombre : id,
-             celdaVal(id, 'JAL', ed),
-             edp !== null ? celdaVal(id, 'JAL', edp) : '—',
-             difTexto(id, 'JAL', ed, edp),
-             celdaVal(id, 'NAC', ed) ];
-  });
-  B.push({ t:'h3', v:'Cifras ancla de la edición' });
-  B.push({ t:'tabla',
-           cab:['Indicador', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp),
-                'Variación', 'Nacional ' + ed],
-           filas: filas, anchos:[38, 14, 14, 14, 20] });
+  add({ t:'h3', c:'N', v:'Cifras ancla de la edición' });
+  add({ t:'tabla', c:'N',
+        cab:['Indicador', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp),
+             'Variación', 'Nacional ' + ed],
+        filas: ancla.map(function(id){
+          var r = porId(id);
+          return [ r ? r.nombre : id, celdaVal(id,'JAL',ed),
+                   edp !== null ? celdaVal(id,'JAL',edp) : '—',
+                   difTexto(id,'JAL',ed,edp), celdaVal(id,'NAC',ed) ];
+        }), anchos:[38, 14, 14, 14, 20] });
 
-  /* redaccion automatica: los movimientos mas grandes de la edicion */
-  var movs = BASE.filter(function(r){
-    return r.unidad === 'porcentaje' && r.JAL[ed] !== undefined &&
-           edp !== null && r.JAL[edp] !== undefined;
-  }).map(function(r){ return { r:r, d: r.JAL[ed] - r.JAL[edp] }; })
-    .sort(function(a,b){ return Math.abs(b.d) - Math.abs(a.d); });
-
-  var intro = edp === null
+  var H = hallazgosJalisco(ed, edp);
+  add({ t:'p', c:'N', v: edp === null
     ? 'Esta lectura corresponde a la edición ' + ed + '. No hay una edición previa con dato en la base, por lo que no se reportan variaciones.'
-    : 'Esta lectura compara la edición ' + ed + ' contra la ' + edp + ' para Jalisco. De los ' +
-      BASE.length + ' indicadores de la base, ' + movs.length +
-      ' expresados en porcentaje cuentan con cifra en ambas ediciones y admiten comparación directa.';
-  B.push({ t:'p', v: intro });
+    : 'Esta lectura compara la edición ' + ed + ' contra la ' + edp + ' para Jalisco. ' +
+      H.deterioros.length + ' indicadores se movieron en contra y ' + H.mejoras.length +
+      ' a favor con un cambio de magnitud relevante. Frente al agregado nacional, Jalisco se ubica en mejor posición en ' +
+      H.favorables + ' de ' + H.comparables + ' indicadores comparables.' });
 
+  var movs = H.deterioros.concat(H.mejoras).sort(function(a, b){ return b.rel - a.rel; });
   if (movs.length){
-    B.push({ t:'p', v:'Los movimientos de mayor magnitud son los siguientes.' });
-    B.push({ t:'lista', v: movs.slice(0, 6).map(function(o){ return frase(o.r, ed, edp); })
-                              .filter(Boolean) });
     var g1 = png({
       type:'bar',
       data:{ labels: movs.slice(0, 10).map(function(o){ return envolver(corta(o.r.nombre), 34); }),
-             datasets:[{ label:'Variación en puntos porcentuales',
+             datasets:[{ label:'Cambio relativo',
                          data: movs.slice(0, 10).map(function(o){
-                           return parseFloat(Number(o.d).toPrecision(12)); }),
+                           var fav = (o.r.dir === 'baja') ? o.d < 0 : o.d > 0;
+                           return parseFloat(Number(fav ? o.rel : -o.rel).toPrecision(12)); }),
                          backgroundColor: movs.slice(0, 10).map(function(o){
-                           var favorable = (o.r.dir === 'baja') ? o.d < 0 : (o.r.dir === 'sube' ? o.d > 0 : null);
-                           return favorable === null ? '#' + GRIS : (favorable ? '#2E9E8F' : '#C0392B');
-                         }), borderRadius:3 }] },
-      options:{ indexAxis:'y',
-        plugins:{ legend:{ display:false } },
+                           var fav = (o.r.dir === 'baja') ? o.d < 0 : o.d > 0;
+                           return fav ? '#2E9E8F' : '#C0392B'; }), borderRadius:3 }] },
+      options:{ indexAxis:'y', plugins:{ legend:{ display:false } },
         scales:{ x: ejeBase(20), y:{ ticks:{ font:{ size:19 }, color:'#3B4654' }, grid:{ display:false } } } }
     }, 1560, 700);
-    B.push({ t:'img', v:g1, pie:'Los diez movimientos de mayor magnitud entre ' + edp + ' y ' + ed +
-                             '. Verde: movimiento favorable según la dirección deseable del indicador. Rojo: desfavorable.' });
+    add({ t:'img', c:'V', g:'g-movs', v:g1,
+          pie:'Los diez movimientos de mayor cambio relativo entre ' + edp + ' y ' + ed +
+              '. A la derecha, movimiento favorable según la dirección deseable del indicador; a la izquierda, desfavorable.' });
   }
 
-  /* ============ PAGINA 2 — PERCEPCION DE INSEGURIDAD ============ */
-  B.push({ t:'salto' });
-  B.push({ t:'h1', v:'Percepción de inseguridad' });
-  B.push({ t:'h2', v:'Población de 18 años y más que se siente insegura, por ámbito territorial' });
+  /* ============ PAGINA 2 — HALLAZGOS CLAVE ============ */
+  add({ t:'salto' });
+  add({ t:'h1', c:'N', v:'Hallazgos clave para Jalisco' });
+  add({ t:'h2', c:'N', v:'Edición ' + ed + (edp === null ? '' : ' frente a ' + edp) +
+        ' · ordenados por magnitud del cambio relativo' });
+
+  var principales = [];
+  H.deterioros.slice(0, 3).forEach(function(o){
+    principales.push('Deterioro. ' + txtMovimiento(o, ed, edp)); });
+  H.mejoras.slice(0, 3).forEach(function(o){
+    principales.push('Mejora. ' + txtMovimiento(o, ed, edp)); });
+  if (H.brechaMal.length)
+    principales.push('Mayor distancia desfavorable contra el país. ' + txtBrecha(H.brechaMal[0]));
+  if (H.comparables)
+    principales.push('Posición frente al país. Jalisco se compara favorablemente con el agregado nacional en ' +
+      H.favorables + ' de ' + H.comparables + ' indicadores comparables' +
+      (H.favorables * 2 < H.comparables ? ', es decir en menos de la mitad.' : '.'));
+
+  if (principales.length) add({ t:'lista', c:'N', v: principales.slice(0, nNegro) });
+  else add({ t:'p', c:'N', v:'La base no tiene cifras suficientes para redactar hallazgos en esta edición.' });
+
+  var secundarios = [];
+  H.deterioros.slice(3, 5).forEach(function(o){
+    secundarios.push('Deterioro. ' + txtMovimiento(o, ed, edp)); });
+  H.mejoras.slice(3, 5).forEach(function(o){
+    secundarios.push('Mejora. ' + txtMovimiento(o, ed, edp)); });
+  H.brechaMal.slice(1, 2).forEach(function(o){
+    secundarios.push('Distancia desfavorable. ' + txtBrecha(o)); });
+  H.brechaBien.slice(0, 1).forEach(function(o){
+    secundarios.push('Distancia favorable. ' + txtBrecha(o)); });
+  if (secundarios.length){
+    add({ t:'h3', c:'V', g:'g-sec', v:'Hallazgos secundarios' });
+    add({ t:'lista', c:'V', g:'g-sec', v: secundarios.slice(0, nVerde) });
+  }
+
+  var avisos = [];
+  if (H.conNota) avisos.push(H.conNota + ' de los ' + BASE.length +
+    ' indicadores de la base traen una anomalía registrada en el origen. Están marcados con la etiqueta «verificar» en el tablero y conviene confirmarlos contra el tabulado antes de citarlos.');
+  var sinNac = BASE.filter(function(r){ return r.NAC[ed] === undefined; }).length;
+  if (sinNac) avisos.push(sinNac + ' de los ' + BASE.length +
+    ' indicadores todavía no tienen cifra nacional en la edición ' + ed +
+    '. La comparación Jalisco–Nacional se apoya únicamente en los ' + H.comparables +
+    ' comparables. Una celda vacía significa dato pendiente de captura, no un valor de cero.');
+  if (avisos.length){
+    add({ t:'h3', c:'A', g:'g-avisos', v:'Advertencias sobre la base' });
+    avisos.forEach(function(a){ add({ t:'nota', c:'A', g:'g-avisos', v:a }); });
+  }
+
+  /* ============ PAGINA 3 — PERCEPCION DE INSEGURIDAD ============ */
+  add({ t:'salto' });
+  add({ t:'h1', c:'N', v:'Percepción de inseguridad' });
+  add({ t:'h2', c:'N', v:'Población de 18 años y más que se siente insegura, por ámbito territorial' });
 
   var terr = [
     { id:'PERC_INSEG_ENT', et:'Entidad federativa' },
@@ -3337,8 +3504,26 @@ function bloquesAnalisis(){
       options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
                 scales:{ x:{ ticks:{ font:{ size:21 }, color:'#3B4654' }, grid:{ display:false } },
                          y: Object.assign({ beginAtZero:true, max:100 }, ejeBase(20)) } }
-    }, 1560, 640);
-    B.push({ t:'img', v:g2, pie:'Porcentaje de población que percibe su entorno como inseguro.' });
+    }, 1560, 620);
+    add({ t:'img', c:'N', v:g2, pie:'Porcentaje de población que percibe su entorno como inseguro.' });
+
+    add({ t:'tabla', c:'N',
+          cab:['Ámbito', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
+          filas: terr.map(function(o){
+            return [o.et, celdaVal(o.id,'JAL',ed),
+                    edp === null ? '—' : celdaVal(o.id,'JAL',edp),
+                    difTexto(o.id,'JAL',ed,edp), celdaVal(o.id,'NAC',ed)];
+          }), anchos:[32, 17, 17, 15, 19] });
+
+    var vE = val('PERC_INSEG_ENT','JAL',ed), vM = val('PERC_INSEG_MUN','JAL',ed),
+        vC = val('PERC_INSEG_COL','JAL',ed);
+    if (vE !== undefined && vM !== undefined && vC !== undefined){
+      add({ t:'p', c:'N', v:'La percepción de inseguridad decrece conforme el ámbito se acerca al entorno inmediato: ' +
+        fmt(vE,'porcentaje') + ' en la entidad, ' + fmt(vM,'porcentaje') + ' en el municipio y ' +
+        fmt(vC,'porcentaje') + ' en la colonia o localidad, una diferencia de ' +
+        num(Math.abs(vE - vC)) + ' puntos porcentuales entre el extremo estatal y el vecinal. El dato vecinal es el que mide la ' +
+        'experiencia cotidiana; el estatal recoge además la percepción formada por la conversación pública.' });
+    }
 
     var serie = png({
       type:'line',
@@ -3352,43 +3537,26 @@ function bloquesAnalisis(){
       options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
                 scales:{ x:{ ticks:{ font:{ size:19 }, color:'#3B4654' }, grid:{ display:false } },
                          y: Object.assign({ beginAtZero:true, max:100 }, ejeBase(20)) } }
-    }, 1560, 620);
-    B.push({ t:'img', v:serie, pie:'Serie histórica de Jalisco, ' + EDICIONES[0] + '–' + EDICIONES[EDICIONES.length-1] + '.' });
+    }, 1560, 560);
+    add({ t:'img', c:'V', g:'g-serie', v:serie,
+          pie:'Serie histórica de Jalisco, ' + EDICIONES[0] + '–' + EDICIONES[EDICIONES.length-1] + '.' });
 
-    B.push({ t:'tabla',
-             cab:['Ámbito', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
-             filas: terr.map(function(o){
-               return [o.et, celdaVal(o.id,'JAL',ed),
-                       edp === null ? '—' : celdaVal(o.id,'JAL',edp),
-                       difTexto(o.id,'JAL',ed,edp), celdaVal(o.id,'NAC',ed)];
-             }), anchos:[32, 17, 17, 15, 19] });
-
-    var vE = val('PERC_INSEG_ENT','JAL',ed), vM = val('PERC_INSEG_MUN','JAL',ed),
-        vC = val('PERC_INSEG_COL','JAL',ed);
-    if (vE !== undefined && vM !== undefined && vC !== undefined){
-      B.push({ t:'p', v:'La percepción de inseguridad decrece conforme el ámbito se acerca al entorno inmediato: ' +
-        fmt(vE,'porcentaje') + ' en la entidad, ' + fmt(vM,'porcentaje') + ' en el municipio y ' +
-        fmt(vC,'porcentaje') + ' en la colonia o localidad, una diferencia de ' +
-        num(Math.abs(vE - vC)) + ' puntos porcentuales entre el extremo estatal y el vecinal. El dato vecinal es el que mide la ' +
-        'experiencia cotidiana; el estatal recoge además la percepción formada por la conversación pública.' });
-    }
     terr.forEach(function(o){
       var f = frase(porId(o.id), ed, edp);
-      if (f) B.push({ t:'p', v:'· ' + f + '.' });
+      if (f) add({ t:'nota', c:'A', g:'g-frases-perc', v:'· ' + f + '.' });
     });
   } else {
-    B.push({ t:'p', v:'La base no contiene los indicadores de percepción de inseguridad por ámbito territorial.' });
+    add({ t:'p', c:'N', v:'La base no contiene los indicadores de percepción de inseguridad por ámbito territorial.' });
   }
 
-  /* ============ PAGINA 3 — VICTIMIZACION Y COSTOS ============ */
-  B.push({ t:'salto' });
-  B.push({ t:'h1', v:'Victimización y costos del delito' });
-  B.push({ t:'h2', v:'Tasas por cada 100 000 habitantes de 18 años y más' });
+  /* ============ PAGINA 4 — VICTIMIZACION Y COSTOS ============ */
+  add({ t:'salto' });
+  add({ t:'h1', c:'N', v:'Victimización y costos del delito' });
+  add({ t:'h2', c:'N', v:'Tasas por cada 100 000 habitantes de 18 años y más' });
 
   var extra = entidadesDe('TASA_VICTIMAS', ed);
   var puntos = [];
   if (extra.length){
-    /* La hoja ya trae mas entidades: la mancuerna se extiende sola. */
     puntos = [{ et:'Jalisco', vic: val('TASA_VICTIMAS','JAL',ed), del: val('TASA_DEL_TOTAL','JAL',ed) },
               { et:'Nacional', vic: val('TASA_VICTIMAS','NAC',ed), del: val('TASA_DEL_TOTAL','NAC',ed) }]
       .concat(extra.map(function(x){
@@ -3427,8 +3595,26 @@ function bloquesAnalisis(){
                                     filter:function(i){ return !!i.text; } } } },
                 scales:{ x:{ type:'category', ticks:{ font:{ size:20 }, color:'#3B4654' }, grid:{ display:false } },
                          y: Object.assign({ beginAtZero:true }, ejeBase(19)) } }
-    }, 1560, 700);
-    B.push({ t:'img', v:g3, pie:'Tasa de víctimas frente a tasa de delitos. La distancia entre ambos puntos expresa cuántos delitos concentra en promedio cada víctima.' });
+    }, 1560, 640);
+    add({ t:'img', c:'N', v:g3,
+          pie:'Tasa de víctimas frente a tasa de delitos. La distancia entre ambos puntos expresa cuántos delitos concentra en promedio cada víctima.' });
+  }
+
+  add({ t:'h3', c:'N', v:'Costos del delito' });
+  add({ t:'tabla', c:'N',
+        cab:['Concepto', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
+        filas:['COSTO_TOTAL_MMDP','COSTO_PROMEDIO_PERSONA'].filter(function(id){ return porId(id); })
+              .map(function(id){
+                return [porId(id).nombre, celdaVal(id,'JAL',ed),
+                        edp === null ? '—' : celdaVal(id,'JAL',edp),
+                        difTexto(id,'JAL',ed,edp), celdaVal(id,'NAC',ed)];
+              }), anchos:[38, 15, 15, 14, 18] });
+
+  var cpJ = val('COSTO_PROMEDIO_PERSONA','JAL',ed), cpN = val('COSTO_PROMEDIO_PERSONA','NAC',ed);
+  if (cpJ !== undefined && cpN !== undefined && cpN > 0){
+    add({ t:'p', c:'N', v:'El costo promedio por persona afectada en Jalisco (' + fmt(cpJ,'pesos') +
+      ') se ubica ' + num2((cpJ / cpN - 1) * 100) + '% por encima del promedio nacional (' +
+      fmt(cpN,'pesos') + ').' });
   }
 
   var sexo = ['TASA_VICTIMAS_H','TASA_VICTIMAS_M'].filter(function(id){ return porId(id); });
@@ -3447,43 +3633,28 @@ function bloquesAnalisis(){
       options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:20 }, boxWidth:18, padding:18 } } },
                 scales:{ x:{ ticks:{ font:{ size:21 }, color:'#3B4654' }, grid:{ display:false } },
                          y: Object.assign({ beginAtZero:true }, ejeBase(19)) } }
-    }, 1560, 560);
-    B.push({ t:'img', v:g4, pie:'Tasa de víctimas por cada 100 000 habitantes, según sexo.' });
+    }, 1560, 520);
+    add({ t:'img', c:'V', g:'g-sexo', v:g4, pie:'Tasa de víctimas por cada 100 000 habitantes, según sexo.' });
   }
 
-  B.push({ t:'h3', v:'Costos del delito' });
-  B.push({ t:'tabla',
-           cab:['Concepto', 'Jalisco ' + ed, 'Jalisco ' + (edp === null ? '—' : edp), 'Variación', 'Nacional ' + ed],
-           filas:['COSTO_TOTAL_MMDP','COSTO_PROMEDIO_PERSONA'].filter(function(id){ return porId(id); })
-                 .map(function(id){
-                   return [porId(id).nombre, celdaVal(id,'JAL',ed),
-                           edp === null ? '—' : celdaVal(id,'JAL',edp),
-                           difTexto(id,'JAL',ed,edp), celdaVal(id,'NAC',ed)];
-                 }), anchos:[38, 15, 15, 14, 18] });
-
-  var cpJ = val('COSTO_PROMEDIO_PERSONA','JAL',ed), cpN = val('COSTO_PROMEDIO_PERSONA','NAC',ed);
-  if (cpJ !== undefined && cpN !== undefined && cpN > 0){
-    B.push({ t:'p', v:'El costo promedio por persona afectada en Jalisco (' + fmt(cpJ,'pesos') +
-      ') se ubica ' + num((cpJ / cpN - 1) * 100) + '% por encima del promedio nacional (' +
-      fmt(cpN,'pesos') + ').' });
-  }
   ['TASA_VICTIMAS','TASA_DEL_TOTAL','CIFRA_NEGRA'].forEach(function(id){
     var r = porId(id); if (!r) return;
-    var f = frase(r, ed, edp); if (f) B.push({ t:'p', v:'· ' + f + '.' });
+    var f = frase(r, ed, edp);
+    if (f) add({ t:'nota', c:'V', g:'g-frases-vict', v:'· ' + f + '.' });
   });
 
-  /* ============ PAGINA 4 — CONFIANZA Y CORRUPCION ============ */
-  B.push({ t:'salto' });
-  B.push({ t:'h1', v:'Confianza y percepción de corrupción por autoridad' });
+  /* ============ PAGINA 5 — CONFIANZA Y CORRUPCION ============ */
+  add({ t:'salto' });
+  add({ t:'h1', c:'N', v:'Confianza y percepción de corrupción por autoridad' });
 
   var auts = autoridades().filter(function(a){
     return (a.conf && a.conf.JAL[ed] !== undefined) || (a.corr && a.corr.JAL[ed] !== undefined);
   });
-
   var conAut = auts.filter(function(a){ return a.conf && a.conf.JAL[ed] !== undefined; })
                    .sort(function(a,b){ return b.conf.JAL[ed] - a.conf.JAL[ed]; });
+  var desglosado = conAut.some(function(a){ return !!nivelesConfianza(a.suf, ed); });
+
   if (conAut.length){
-    var desglosado = conAut.some(function(a){ return !!nivelesConfianza(a.suf, ed); });
     var rej = rejillaDonas(conAut.map(function(a){
       var niv = nivelesConfianza(a.suf, ed);
       var ident = val('IDENT_' + a.suf, 'JAL', ed);
@@ -3491,81 +3662,137 @@ function bloquesAnalisis(){
                prev: edp === null ? null : (niv ? null : a.conf.JAL[edp]),
                niveles: niv,
                centro: fmt(niv && ident !== undefined ? ident : a.conf.JAL[ed], 'porcentaje') };
-    }), 4, 380, 340, desglosado
+    }), 4, 380, 330, desglosado
         ? [{ c:'12463F', t:'Mucha confianza' }, { c:TEAL, t:'Algo de confianza' },
            { c:'E8913C', t:'Algo de desconfianza' }, { c:'C9385E', t:'Mucha desconfianza' }]
         : [{ c:TINTA, t:'Confianza ' + ed }, { c:TEAL, t:'Confianza ' + (edp === null ? 'previa' : edp) }]);
-    B.push({ t:'h3', v:'Confianza (mucha + algo) en la autoridad · Jalisco' });
-    B.push({ t:'img', v:rej, pie: desglosado
+    add({ t:'h3', c:'N', v:'Confianza (mucha + algo) en la autoridad · Jalisco' });
+    add({ t:'img', c:'N', v:rej, pie: desglosado
       ? 'Desglose por nivel de confianza. La cifra al centro corresponde a la población que identifica a la autoridad.'
-      : 'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' + (edp === null ? 'previa' : edp) +
-        '. La cifra al centro es el valor de ' + ed + '.' });
+      : 'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' + (edp === null ? 'previa' : edp) + '.' });
   }
 
   var corrAut = auts.filter(function(a){ return a.corr && a.corr.JAL[ed] !== undefined; })
                     .sort(function(a,b){ return b.corr.JAL[ed] - a.corr.JAL[ed]; });
+
+  add({ t:'tabla', c:'N',
+        cab:['Autoridad', 'Confianza ' + ed, 'Var.', 'Corrupción ' + ed, 'Var.'],
+        filas: conAut.concat(corrAut.filter(function(a){ return conAut.indexOf(a) === -1; }))
+          .map(function(a){
+            return [a.nombre,
+              a.conf && a.conf.JAL[ed] !== undefined ? fmt(a.conf.JAL[ed],'porcentaje') : '—',
+              a.conf ? difTexto(a.conf.id,'JAL',ed,edp) : '—',
+              a.corr && a.corr.JAL[ed] !== undefined ? fmt(a.corr.JAL[ed],'porcentaje') : '—',
+              a.corr ? difTexto(a.corr.id,'JAL',ed,edp) : '—'];
+          }), anchos:[36, 16, 16, 16, 16] });
+
   if (corrAut.length){
     var rej2 = rejillaDonas(corrAut.map(function(a){
-      var ident = val('IDENT_' + a.suf, 'JAL', ed);
       return { titulo:a.nombre, act:a.corr.JAL[ed],
                prev: edp === null ? null : a.corr.JAL[edp],
-               centro: fmt(a.corr.JAL[ed], 'porcentaje'),
-               nota: ident };
-    }), 4, 380, 340,
+               centro: fmt(a.corr.JAL[ed], 'porcentaje') };
+    }), 4, 380, 330,
       [{ c:TINTA, t:'Percepción de corrupción ' + ed },
        { c:TEAL, t:'Percepción de corrupción ' + (edp === null ? 'previa' : edp) }]);
-    B.push({ t:'h3', v:'Percepción de corrupción en la autoridad · Jalisco' });
-    B.push({ t:'img', v:rej2, pie:'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' +
-                                  (edp === null ? 'previa' : edp) + '.' });
+    add({ t:'h3', c:'V', g:'g-corr', v:'Percepción de corrupción en la autoridad · Jalisco' });
+    add({ t:'img', c:'V', g:'g-corr', v:rej2,
+          pie:'Anillo exterior: edición ' + ed + '. Anillo interior: edición ' +
+              (edp === null ? 'previa' : edp) + '.' });
   }
 
-  B.push({ t:'tabla',
-           cab:['Autoridad', 'Confianza ' + ed, 'Var.', 'Corrupción ' + ed, 'Var.'],
-           filas: conAut.concat(corrAut.filter(function(a){ return conAut.indexOf(a) === -1; }))
-             .map(function(a){
-               return [a.nombre,
-                 a.conf && a.conf.JAL[ed] !== undefined ? fmt(a.conf.JAL[ed],'porcentaje') : '—',
-                 a.conf ? difTexto(a.conf.id,'JAL',ed,edp) : '—',
-                 a.corr && a.corr.JAL[ed] !== undefined ? fmt(a.corr.JAL[ed],'porcentaje') : '—',
-                 a.corr ? difTexto(a.corr.id,'JAL',ed,edp) : '—'];
-             }), anchos:[36, 16, 16, 16, 16] });
-
-  /* Declaracion de lo que la base todavia no cubre. */
   var pendientes = [];
-  if (!conAut.some(function(a){ return !!nivelesConfianza(a.suf, ed); }))
-    pendientes.push('el desglose por nivel de confianza y desconfianza');
+  if (!desglosado) pendientes.push('el desglose por nivel de confianza y desconfianza');
   if (val('IDENT_' + (auts[0] ? auts[0].suf : 'X'), 'JAL', ed) === undefined)
     pendientes.push('la proporción de población que identifica a cada autoridad');
   if (!hayDesempeno(ed)) pendientes.push('la percepción de desempeño de las autoridades');
   if (!entidadesDe('TASA_VICTIMAS', ed).length) pendientes.push('las tasas del resto de las entidades federativas');
   if (pendientes.length){
-    B.push({ t:'nota', v:'La base de esta edición no incluye ' + pendientes.join('; ') +
+    add({ t:'nota', c:'A', g:'g-pend', v:'La base de esta edición no incluye ' + pendientes.join('; ') +
       '. Estos apartados se incorporan automáticamente en cuanto los indicadores se capturen en la hoja de origen.' });
   }
 
-  /* ============ PAGINA 5 (condicional) — DESEMPENO ============ */
+  /* ============ PAGINA CONDICIONAL — DESEMPENO ============
+     Nace en verde: es material que suma, pero el nucleo negro no puede
+     crecer a seis paginas sin romper el compromiso de cinco. */
   if (hayDesempeno(ed)){
-    B.push({ t:'salto' });
-    B.push({ t:'h1', v:'Percepción de desempeño por autoridad' });
+    add({ t:'salto', c:'V', g:'g-desem' });
+    add({ t:'h1', c:'V', g:'g-desem', v:'Percepción de desempeño por autoridad' });
     var des = auts.filter(function(a){ return !!nivelesDesempeno(a.suf, ed); });
     var rej3 = rejillaDonas(des.map(function(a){
       var ident = val('IDENT_' + a.suf, 'JAL', ed);
       var niv = nivelesDesempeno(a.suf, ed);
       return { titulo:a.nombre, act:niv[0] + niv[1], prev:null, niveles:niv,
                centro: fmt(ident !== undefined ? ident : niv[0] + niv[1], 'porcentaje') };
-    }), 4, 380, 340,
+    }), 4, 380, 330,
       [{ c:'12463F', t:'Muy efectivo' }, { c:TEAL, t:'Algo efectivo' },
        { c:'E8913C', t:'Poco efectivo' }, { c:'C9385E', t:'Nada efectivo' }]);
-    B.push({ t:'img', v:rej3, pie:'La cifra al centro corresponde a la población que identifica a la autoridad.' });
+    add({ t:'img', c:'V', g:'g-desem', v:rej3,
+          pie:'La cifra al centro corresponde a la población que identifica a la autoridad.' });
   }
 
-  B.push({ t:'nota', v:'Fuente: INEGI, Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública ' +
-    '(ENVIPE), edición ' + ed + '. Elaboración de la Coordinación General Estratégica de Seguridad, Gobierno de Jalisco. ' +
-    'Una celda vacía significa dato no disponible en la base, nunca un valor de cero. Los indicadores de victimización, ' +
-    'costos, denuncia y comportamientos se refieren al año previo a la edición; los de percepción, confianza y corrupción, ' +
-    'al año de la edición.' });
+  /* ============ CIERRE ============ */
+  add({ t:'nota', c:'N', v:'Fuente: INEGI, Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública ' +
+    '(ENVIPE), edición ' + ed + '. Elaboración de la Coordinación General Estratégica de Seguridad, Gobierno de Jalisco.' });
+  add({ t:'nota', c:'A', g:'g-metodo', v:'Nota metodológica. Las cifras se presentan con todos los decimales de la fuente y un mínimo de dos; ' +
+    'no se redondea en ningún punto y las variaciones se calculan con los valores completos. Una celda vacía significa dato no ' +
+    'disponible, nunca un valor de cero. Los indicadores de victimización, costos, denuncia y comportamientos se refieren al año ' +
+    'previo a la edición; los de percepción, confianza y corrupción, al año de la edición. El orden de los hallazgos se establece por ' +
+    'cambio relativo, comparable entre unidades distintas, con un umbral de entrada de un punto porcentual en los indicadores ' +
+    'expresados en porcentaje y de 3% de cambio relativo en los demás.' });
 
   return { bloques: B, ed: ed, edp: edp };
+}
+
+/* Presupuesto: negro <= 5 paginas, total <= 8. Si se pasa, se recorta por
+   prioridad —primero naranja, luego verde— y se declara el recorte. */
+function ajustarAlCupo(res, maxTotal, maxNegro){
+  var recortados = [];
+
+  function quitarGrupo(color){
+    var i = -1, g = null;
+    for (var k = res.bloques.length - 1; k >= 0; k--){
+      if (res.bloques[k].c === color){ i = k; g = res.bloques[k].g; break; }
+    }
+    if (i < 0) return false;
+    if (g){
+      res.bloques = res.bloques.filter(function(b){
+        if (b.g === g){ recortados.push(b); return false; }
+        return true;
+      });
+    } else {
+      recortados.push(res.bloques[i]);
+      res.bloques.splice(i, 1);
+    }
+    return true;
+  }
+
+  var guarda = 0;
+  while (cuentaPaginas(res.bloques) > maxTotal && guarda++ < 40){
+    if (!quitarGrupo('A') && !quitarGrupo('V')) break;
+  }
+
+  res.paginasTotal = cuentaPaginas(res.bloques);
+  res.paginasNegro = cuentaPaginas(soloNegro(res.bloques));
+  res.recortados = recortados.length;
+  return res;
+}
+
+/* Arma el documento y, si el nucleo negro no cabe en cinco paginas, lo
+   vuelve a armar con menos hallazgos hasta que quepa. */
+function analisisAjustado(){
+  var negro = 8, verde = 6, res = null;
+  for (var i = 0; i < 4; i++){
+    res = ajustarAlCupo(bloquesAnalisis({ negro: negro, verde: verde }), 8, 5);
+    if (res.paginasNegro <= 5) break;
+    negro = Math.max(5, negro - 1);
+    verde = Math.max(3, verde - 1);
+  }
+  if (res.recortados || negro < 8){
+    res.bloques.push({ t:'nota', c:'A', v:'Ajuste automático de extensión: el documento se recortó para respetar el tope de ' +
+      'ocho páginas y de cinco en el material marcado en negro. Se eliminaron primero los apartados en naranja y después los ' +
+      'de menor prioridad en verde' + (negro < 8 ? ', y se redujo el número de hallazgos principales a ' + negro : '') + '.' });
+  }
+  return res;
 }
 
 /* ---------- salida 1: .docx real ---------- */
@@ -3576,7 +3803,6 @@ function base64De(dataURL){ return dataURL.split(',')[1]; }
 
 function aDocx(D, res){
   var hijos = [];
-  var ANCHO = 640;   /* puntos utiles de la caja de texto */
 
   function parr(txt, o){
     o = o || {};
@@ -3584,29 +3810,51 @@ function aDocx(D, res){
       alignment: o.centro ? D.AlignmentType.CENTER : D.AlignmentType.LEFT,
       spacing:{ before:o.antes || 0, after: o.despues === undefined ? 120 : o.despues },
       children:[ new D.TextRun({ text: txt, bold: !!o.negrita, size: o.tam || 20,
-                                 color: o.color || '2A3340', font:'Calibri' }) ]
+                                 color: o.color || C_NEGRO, font:'Calibri' }) ]
     });
   }
 
   res.bloques.forEach(function(b){
+    var col = colorDe(b.c);
     if (b.t === 'salto'){ hijos.push(new D.Paragraph({ children:[ new D.PageBreak() ] })); return; }
-    if (b.t === 'h1'){ hijos.push(parr(b.v, { negrita:true, tam:34, color:TINTA, despues:60 })); return; }
-    if (b.t === 'h2'){ hijos.push(parr(b.v, { negrita:true, tam:22, color:OSCURO, despues:60 })); return; }
-    if (b.t === 'h3'){ hijos.push(parr(b.v, { negrita:true, tam:24, color:TINTA, antes:180, despues:80 })); return; }
+
+    if (b.t === 'leyenda'){
+      hijos.push(new D.Paragraph({ spacing:{ after:60 }, children:[
+        new D.TextRun({ text:'CÓDIGO DE EDICIÓN — eliminar este recuadro antes de entregar',
+                        bold:true, size:16, color:C_NARANJA, font:'Calibri' }) ] }));
+      hijos.push(new D.Paragraph({ spacing:{ after:240 }, children:[
+        new D.TextRun({ text:'▌ Negro: importante y necesario, se queda.   ', size:16, color:C_NEGRO, font:'Calibri' }),
+        new D.TextRun({ text:'▌ Verde: importante, puede borrarse.   ', size:16, color:C_VERDE, font:'Calibri' }),
+        new D.TextRun({ text:'▌ Naranja: relleno, conviene borrarlo.', size:16, color:C_NARANJA, font:'Calibri' }) ] }));
+      return;
+    }
+    if (b.t === 'h1'){ hijos.push(parr(b.v, { negrita:true, tam:34, color: b.azul ? C_AZUL : col, despues:60 })); return; }
+    if (b.t === 'h2'){ hijos.push(parr(b.v, { negrita:true, tam:22, color: b.azul ? OSCURO : col, despues:60 })); return; }
+    if (b.t === 'h3'){ hijos.push(parr(b.v, { negrita:true, tam:24, color:col, antes:180, despues:80 })); return; }
     if (b.t === 'meta'){ hijos.push(parr(b.v, { tam:17, color:TENUE, despues:200 })); return; }
-    if (b.t === 'p'){ hijos.push(parr(b.v, { tam:20 })); return; }
-    if (b.t === 'nota'){ hijos.push(parr(b.v, { tam:15, color:TENUE, antes:160 })); return; }
+    if (b.t === 'p'){ hijos.push(parr(b.v, { tam:20, color:col })); return; }
+    if (b.t === 'nota'){ hijos.push(parr(b.v, { tam:15, color:col, antes:120 })); return; }
     if (b.t === 'lista'){
-      b.v.forEach(function(l){ hijos.push(parr('•  ' + l + '.', { tam:19, despues:70 })); });
+      b.v.forEach(function(l){ hijos.push(parr('•  ' + l, { tam:19, color:col, despues:80 })); });
       return;
     }
     if (b.t === 'img'){
-      var alto = Math.round(ANCHO * b.v.h / b.v.w);
+      var alto = Math.round(ANCHO_IMG * b.v.h / b.v.w);
+      /* Una imagen no admite color de letra. Para que se vea a que grupo
+         pertenece —y sobre todo para que no quede huerfana cuando se borre
+         su pie— la imagen y el pie comparten una barra lateral del color de
+         la seccion. En negro no se dibuja: la version del Gobernador queda
+         limpia sin tener que quitar nada. */
+      var barra = (b.c === 'V' || b.c === 'A')
+        ? { left:{ style:D.BorderStyle.SINGLE, size:18, space:8, color:col } }
+        : undefined;
       hijos.push(new D.Paragraph({
         alignment: D.AlignmentType.CENTER, spacing:{ before:120, after:60 },
+        border: barra,
         children:[ new D.ImageRun({ data: base64De(b.v.url),
-                                    transformation:{ width:ANCHO, height:alto } }) ] }));
-      if (b.pie) hijos.push(parr(b.pie, { tam:15, color:TENUE, centro:false, despues:160 }));
+                                    transformation:{ width:ANCHO_IMG, height:alto } }) ] }));
+      hijos.push(new D.Paragraph({ spacing:{ after:160 }, border: barra, children:[
+        new D.TextRun({ text: (barra ? '' : '') + (b.pie || ''), size:15, color:col, font:'Calibri' }) ] }));
       return;
     }
     if (b.t === 'tabla'){
@@ -3617,7 +3865,7 @@ function aDocx(D, res){
           margins:{ top:60, bottom:60, left:90, right:90 },
           children:[ new D.Paragraph({ spacing:{ before:0, after:0 },
             children:[ new D.TextRun({ text:String(txt), bold:!!cab, size:17,
-                                       color: cab ? OSCURO : '2A3340', font:'Calibri' }) ] }) ]
+                                       color:col, font:'Calibri' }) ] }) ]
         });
       }
       var renglones = [ new D.TableRow({ tableHeader:true,
@@ -3643,25 +3891,34 @@ function aDocx(D, res){
 
 function aHTMLWord(res){
   var p = [];
+  function cls(b){ return b.c === 'V' ? ' class="v"' : (b.c === 'A' ? ' class="a"' : ''); }
   res.bloques.forEach(function(b){
     if (b.t === 'salto'){ p.push('<br clear="all" style="page-break-before:always">'); return; }
-    if (b.t === 'h1'){ p.push('<h1>' + esc(b.v) + '</h1>'); return; }
-    if (b.t === 'h2'){ p.push('<h2>' + esc(b.v) + '</h2>'); return; }
-    if (b.t === 'h3'){ p.push('<h3>' + esc(b.v) + '</h3>'); return; }
+    if (b.t === 'leyenda'){
+      p.push('<p class="a" style="font-weight:bold">CÓDIGO DE EDICIÓN — eliminar este recuadro antes de entregar</p>' +
+        '<p><span style="color:#1A1A1A">▌ Negro: importante y necesario, se queda.</span> ' +
+        '<span style="color:#156D3C">▌ Verde: importante, puede borrarse.</span> ' +
+        '<span style="color:#C2610A">▌ Naranja: relleno, conviene borrarlo.</span></p>');
+      return;
+    }
+    if (b.t === 'h1'){ p.push('<h1' + (b.azul ? ' class="azul"' : cls(b)) + '>' + esc(b.v) + '</h1>'); return; }
+    if (b.t === 'h2'){ p.push('<h2' + (b.azul ? ' class="azul"' : cls(b)) + '>' + esc(b.v) + '</h2>'); return; }
+    if (b.t === 'h3'){ p.push('<h3' + cls(b) + '>' + esc(b.v) + '</h3>'); return; }
     if (b.t === 'meta'){ p.push('<p class="meta">' + esc(b.v) + '</p>'); return; }
-    if (b.t === 'p'){ p.push('<p>' + esc(b.v) + '</p>'); return; }
-    if (b.t === 'nota'){ p.push('<p class="nota">' + esc(b.v) + '</p>'); return; }
+    if (b.t === 'p'){ p.push('<p' + cls(b) + '>' + esc(b.v) + '</p>'); return; }
+    if (b.t === 'nota'){ p.push('<p class="nota' + (b.c === 'V' ? ' v' : (b.c === 'A' ? ' a' : '')) + '">' + esc(b.v) + '</p>'); return; }
     if (b.t === 'lista'){
-      p.push('<ul>' + b.v.map(function(l){ return '<li>' + esc(l) + '.</li>'; }).join('') + '</ul>');
+      p.push('<ul' + cls(b) + '>' + b.v.map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>');
       return;
     }
     if (b.t === 'img'){
-      p.push('<p class="fig"><img src="' + b.v.url + '" width="640"></p>');
-      if (b.pie) p.push('<p class="pie">' + esc(b.pie) + '</p>');
+      var mk = b.c === 'V' ? ' v' : (b.c === 'A' ? ' a' : '');
+      p.push('<p class="fig' + mk + '"><img src="' + b.v.url + '" width="640"></p>');
+      p.push('<p class="pie' + mk + '">' + esc(b.pie || '') + '</p>');
       return;
     }
     if (b.t === 'tabla'){
-      p.push('<table><tr>' + b.cab.map(function(c, i){
+      p.push('<table' + cls(b) + '><tr>' + b.cab.map(function(c, i){
         return '<th width="' + b.anchos[i] + '%">' + esc(c) + '</th>'; }).join('') + '</tr>' +
         b.filas.map(function(f){
           return '<tr>' + f.map(function(c){ return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>';
@@ -3673,16 +3930,20 @@ function aHTMLWord(res){
     'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">' +
     '<head><meta charset="utf-8"><title>Análisis ENVIPE ' + res.ed + '</title>' +
     '<style>@page{size:21cm 29.7cm;margin:1.6cm}' +
-    'body{font-family:Calibri,Arial,sans-serif;color:#2A3340;font-size:10.5pt}' +
-    'h1{color:#1B3A8C;font-size:19pt;margin:0 0 4pt}' +
-    'h2{color:#0A2A5E;font-size:12pt;margin:0 0 4pt}' +
-    'h3{color:#1B3A8C;font-size:13pt;margin:14pt 0 5pt}' +
+    'body{font-family:Calibri,Arial,sans-serif;color:#1A1A1A;font-size:10.5pt}' +
+    'h1{font-size:19pt;margin:0 0 4pt;color:#1A1A1A}' +
+    'h2{font-size:12pt;margin:0 0 4pt;color:#1A1A1A}' +
+    'h3{font-size:13pt;margin:14pt 0 5pt;color:#1A1A1A}' +
+    'h1.azul{color:#1B3A8C}h2.azul{color:#0A2A5E}' +
+    '.v,.v *{color:#156D3C;border-left:3px solid #156D3C;padding-left:6pt}' +
+    '.a,.a *{color:#C2610A;border-left:3px solid #C2610A;padding-left:6pt}' +
+    '.v *,.a *{border-left:0;padding-left:0}' +
     '.meta{color:#5A6472;font-size:9pt;margin:0 0 12pt}' +
-    '.nota{color:#5A6472;font-size:8pt}' +
-    '.pie{color:#5A6472;font-size:8pt;margin:2pt 0 12pt}' +
+    '.nota{font-size:8pt}' +
+    '.pie{font-size:8pt;margin:2pt 0 12pt}' +
     '.fig{margin:8pt 0 2pt}' +
     'table{border-collapse:collapse;width:100%;margin:6pt 0 12pt}' +
-    'th{background:#EEF2F8;color:#0A2A5E;font-size:9pt;text-align:left;padding:4pt 6pt;border:1px solid #D5DCE6}' +
+    'th{background:#EEF2F8;font-size:9pt;text-align:left;padding:4pt 6pt;border:1px solid #D5DCE6}' +
     'td{font-size:9pt;padding:4pt 6pt;border:1px solid #D5DCE6}' +
     'li{margin-bottom:3pt}</style></head><body>' + p.join('') + '</body></html>';
 }
@@ -3716,7 +3977,7 @@ function generarAnalisis(){
   /* Las graficas se dibujan primero: si algo falla, falla antes de bajar nada. */
   var res;
   try {
-    res = bloquesAnalisis();
+    res = analisisAjustado();
   } catch (e){
     terminar('Error al armar');
     console.error(e);
