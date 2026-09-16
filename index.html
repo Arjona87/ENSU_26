@@ -547,6 +547,62 @@ footer p{margin:4px 0}
   .ev-fila .ev-nac{display:none}
 }
 </style>
+
+<style>
+/* ============================================================
+   CAPA PROPIA DEL CNSPE. Todo con prefijo .cnspe- para que al
+   fusionar no colisione con ninguna regla de ENSU ni de ENVIPE.
+   ============================================================ */
+.cnspe-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.cnspe-kpi{
+  background:#F7F9FC;border:1px solid var(--linea);border-left:4px solid var(--marina);
+  border-radius:9px;padding:15px 17px;
+}
+.cnspe-kpi .cnspe-rot{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--tenue);font-weight:700;line-height:1.3}
+.cnspe-kpi .cnspe-val{
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  font-size:27px;font-weight:600;color:var(--marina-900);line-height:1.1;margin-top:7px;
+}
+.cnspe-kpi .cnspe-ref{font-size:11.5px;color:var(--tenue);margin-top:5px;line-height:1.4}
+.cnspe-kpi .cnspe-var{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;margin-top:3px}
+.cnspe-kpi.cnspe-ok{border-left-color:var(--baja)}
+.cnspe-kpi.cnspe-alerta{border-left-color:var(--alza)}
+
+.cnspe-peso{display:flex;flex-direction:column;gap:9px}
+.cnspe-peso-fila{display:grid;grid-template-columns:minmax(0,1fr) 78px;align-items:center;gap:12px}
+.cnspe-peso-nom{font-size:12.5px;font-weight:600;color:var(--tinta)}
+.cnspe-peso-pista{font-size:11px;color:var(--tenue);font-weight:400;display:block}
+.cnspe-peso-riel{position:relative;height:9px;background:#E7ECF3;border-radius:5px;overflow:hidden;margin-top:5px}
+.cnspe-peso-barra{position:absolute;top:0;left:0;height:100%;border-radius:5px;background:var(--dato)}
+.cnspe-peso-barra.cnspe-b-alta{background:var(--alza)}
+.cnspe-peso-barra.cnspe-b-ok{background:var(--estatal)}
+.cnspe-peso-ref{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--marina-900)}
+.cnspe-peso-num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;text-align:right;color:var(--marina-900)}
+
+.cnspe-leyenda{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--tenue);margin-top:14px}
+.cnspe-leyenda span{display:inline-flex;align-items:center;gap:6px}
+.cnspe-chip{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.cnspe-sexo{display:flex;flex-direction:column;gap:2px;max-height:430px;overflow-y:auto;padding-right:6px}
+.cnspe-sexo-fila{display:grid;grid-template-columns:minmax(0,152px) minmax(0,1fr) 62px;align-items:center;gap:11px;padding:3px 0}
+.cnspe-sexo-nom{font-size:11.5px;color:var(--tinta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cnspe-sexo-fila.cnspe-hito .cnspe-sexo-nom{font-weight:700;color:var(--marina-900)}
+.cnspe-sexo-riel{display:flex;height:15px;border-radius:3px;overflow:hidden}
+.cnspe-sexo-m{background:#8E44AD}
+.cnspe-sexo-h{background:#16A085}
+.cnspe-sexo-num{font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-align:right;color:var(--tenue)}
+.cnspe-sexo-fila.cnspe-hito .cnspe-sexo-num{color:var(--marina-900);font-weight:600}
+
+.cnspe-aud{display:grid;gap:10px}
+.cnspe-aud-item{
+  display:grid;grid-template-columns:20px minmax(0,1fr);gap:11px;align-items:start;
+  font-size:13px;padding:11px 13px;background:#F7F9FC;border:1px solid var(--linea);border-radius:8px;
+}
+.cnspe-aud-item b{display:block;color:var(--marina-900);font-family:'Archivo',sans-serif;font-size:12.5px;margin-bottom:2px}
+.cnspe-aud-ico{font-size:15px;line-height:1.2;text-align:center}
+.cnspe-aud-item.cnspe-corr{border-left:3px solid var(--alza)}
+.cnspe-aud-item.cnspe-nota{border-left:3px solid var(--naranja)}
+</style>
 </head>
 <body>
 
@@ -564,6 +620,10 @@ footer p{margin:4px 0}
         <div class="kicker">Reporte ejecutivo · INEGI</div>
         <h1>Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública</h1>
       </div>
+      <div id="marcaCNSPE" hidden>
+        <div class="kicker">Reporte ejecutivo · INEGI</div>
+        <h1>Censo Nacional de Seguridad Pública Estatal</h1>
+      </div>
     </div>
     <div class="marca-acc">
       <div id="accENSU" class="acc-grupo">
@@ -574,6 +634,11 @@ footer p{margin:4px 0}
         <button class="btn btn-fantasma" id="btnActualizarEV" type="button">&#8635; Actualizar datos</button>
         <button class="btn btn-primario" id="btnDescargarEV" type="button">&#8595; Descargar imagen</button>
         <button class="btn btn-primario" id="btnAnalisisEV" type="button">&#8595; Descargar an&aacute;lisis (Word)</button>
+      </div>
+      <div id="accCNSPE" class="acc-grupo" hidden>
+        <button class="btn btn-fantasma" id="btnActualizar_CNSPE" type="button">&#8635; Actualizar datos</button>
+        <button class="btn btn-primario" id="btnDescargar_CNSPE" type="button">&#8595; Descargar imagen</button>
+        <button class="btn btn-primario" id="btnFicha_CNSPE" type="button">&#8595; Ficha informativa</button>
       </div>
     </div>
   </div>
@@ -588,6 +653,10 @@ footer p{margin:4px 0}
     <button class="nivel1-tab" id="n1-ENVIPE" type="button" role="tab"
             aria-selected="false" aria-controls="vistaENVIPE" data-vista="ENVIPE">
       ENVIPE<span class="n1-sub">Victimización y Percepción</span>
+    </button>
+    <button class="nivel1-tab" id="n1-CNSPE" type="button" role="tab"
+            aria-selected="false" aria-controls="vistaCNSPE" data-vista="CNSPE">
+      CNSPE<span class="n1-sub">Censo de Seguridad Pública Estatal</span>
     </button>
   </div>
 </nav>
@@ -894,6 +963,173 @@ footer p{margin:4px 0}
 </main>
 </div>
 
+<div class="vista" id="vistaCNSPE" role="tabpanel" aria-labelledby="n1-CNSPE" hidden>
+
+<nav class="control" aria-label="Controles del reporte CNSPE">
+  <div class="control-int">
+    <div class="pestanas" id="pestanas_CNSPE" role="tablist" aria-label="Módulo"></div>
+    <div class="periodo-sel">
+      <label for="selAnio_CNSPE">Edición del censo</label>
+      <select id="selAnio_CNSPE"></select>
+    </div>
+  </div>
+</nav>
+
+<div class="aviso aviso-adv" id="avisoRespaldo_CNSPE" role="status">
+  <span>&#9888;</span><span id="avisoRespaldoTxt_CNSPE"></span>
+</div>
+<div class="aviso aviso-err" id="avisoError_CNSPE" role="alert">
+  <span>&#9888;</span><span id="avisoErrorTxt_CNSPE"></span>
+</div>
+
+<div id="cargando_CNSPE" class="cargando">
+  <div class="giro"></div>
+  <p>Conectando con la base de datos del CNSPE…</p>
+</div>
+
+<main id="reporte_CNSPE" class="oculto">
+
+  <section class="panel portada">
+    <div class="eyebrow" id="portadaCat_CNSPE">—</div>
+    <h2 id="portadaTitulo_CNSPE">—</h2>
+    <p class="sub" id="portadaSub_CNSPE">—</p>
+    <div class="portada-meta">
+      <div><span>Edición</span><strong id="metaEdicion_CNSPE">—</strong></div>
+      <div><span>Datos con cierre</span><strong id="metaCierre_CNSPE">—</strong></div>
+      <div><span>Personal en Jalisco</span><strong id="metaPersonal_CNSPE">—</strong></div>
+      <div><span>Peso nacional</span><strong id="metaPeso_CNSPE">—</strong></div>
+      <div><span>Fuente</span><strong>INEGI · CNSPE</strong></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Panorama</div>
+      <h2>Indicadores clave de Jalisco</h2>
+      <p class="sub">Valor del estado en la edición seleccionada, con la referencia nacional del mismo periodo y el cambio frente a la edición anterior.</p>
+    </div>
+    <div class="cnspe-kpis" id="kpis_CNSPE"></div>
+  </section>
+
+  <div class="duo">
+    <section class="panel">
+      <div class="panel-cab">
+        <div class="eyebrow">Proporción</div>
+        <h2>Peso de Jalisco en el total nacional</h2>
+        <p class="sub">La línea vertical marca la participación de Jalisco en el personal de seguridad pública del país. Una barra que la rebasa indica un indicador sobrerrepresentado respecto al tamaño del estado.</p>
+      </div>
+      <div class="cnspe-peso" id="peso_CNSPE"></div>
+      <div class="cnspe-leyenda">
+        <span><i class="cnspe-chip" style="background:var(--alza)"></i> Muy por encima de su peso</span>
+        <span><i class="cnspe-chip" style="background:var(--dato)"></i> En línea</span>
+        <span><i class="cnspe-chip" style="background:var(--estatal)"></i> Por debajo</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-cab">
+        <div class="eyebrow">Lectura del periodo</div>
+        <h2>Variación frente a la edición anterior</h2>
+        <p class="sub">Indicadores de Jalisco ordenados por magnitud del cambio.</p>
+      </div>
+      <div class="lista-ent" id="tira_CNSPE"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Evolución</div>
+      <h2 id="tituloSerie_CNSPE">Serie histórica</h2>
+      <p class="sub">Jalisco y el agregado nacional en ejes independientes, por diferencia de escala. Seleccione el indicador en la barra superior.</p>
+    </div>
+    <div class="lienzo h-alta"><canvas id="gSerie_CNSPE"></canvas></div>
+    <p class="pista">&#9679; La escala de Jalisco se lee en el eje derecho.</p>
+  </section>
+
+  <div class="duo">
+    <section class="panel">
+      <div class="panel-cab">
+        <div class="eyebrow">Composición</div>
+        <h2 id="tituloComp_CNSPE">Distribución por categoría</h2>
+        <p class="sub">Participación relativa dentro de cada ámbito, para comparar estructura y no magnitud.</p>
+      </div>
+      <div class="lienzo h-media"><canvas id="gComp_CNSPE"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-cab">
+        <div class="eyebrow">Formación policial</div>
+        <h2>Ingreso, egreso y deserción de cadetes</h2>
+        <p class="sub">Movimiento en las academias de formación inicial de Jalisco a lo largo de la serie.</p>
+      </div>
+      <div class="lienzo h-media"><canvas id="gCadetes_CNSPE"></canvas></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Equidad</div>
+      <h2>Personal por entidad federativa y sexo</h2>
+      <p class="sub">Composición del personal de seguridad pública al cierre de 2025, ordenada por participación femenina. Jalisco, el promedio nacional y la Guardia Nacional aparecen resaltados.</p>
+    </div>
+    <div class="cnspe-sexo" id="sexo_CNSPE"></div>
+    <div class="cnspe-leyenda">
+      <span><i class="cnspe-chip" style="background:#8E44AD"></i> Mujeres</span>
+      <span><i class="cnspe-chip" style="background:#16A085"></i> Hombres</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Lectura</div>
+      <h2>Hallazgos del corte</h2>
+      <p class="sub">Generados a partir de los datos de la edición seleccionada; no son texto fijo.</p>
+    </div>
+    <div class="hallazgos" id="hallazgos_CNSPE"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Control de calidad</div>
+      <h2>Auditoría contra el documento oficial</h2>
+      <p class="sub">Diferencias detectadas entre la base institucional y los Resultados generales del CNSPF-E publicados por el INEGI. Ninguna cifra de la fuente fue modificada: se declaran para decisión de esta Coordinación.</p>
+    </div>
+    <div class="cnspe-aud" id="auditoria_CNSPE"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Detalle</div>
+      <h2>Serie completa por indicador</h2>
+      <p class="sub">Todos los indicadores del módulo seleccionado, 2021 a 2026. Las celdas sin dato se muestran vacías: no se interpola ningún valor.</p>
+    </div>
+    <div class="tabla-caja"><table id="tabla_CNSPE"></table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-cab">
+      <div class="eyebrow">Transparencia</div>
+      <h2>Nota metodológica</h2>
+    </div>
+    <div class="metodo">
+      <ul>
+        <li><b>Instrumento</b>Censo Nacional de Seguridad Pública Estatal (CNSPE), antes CNGSPSPE. Levantamiento anual del INEGI.</li>
+        <li><b>Cobertura</b>Nacional, con desglose por entidad federativa.</li>
+        <li><b>Referencia temporal</b>Cada edición reporta el cierre del ejercicio anterior. La edición 2026 corresponde al cierre de 2025.</li>
+        <li><b>Nota del censo</b>La Ciudad de México no entregó el módulo de Estructura organizacional y recursos al cierre operativo; los totales nacionales de ese módulo la excluyen.</li>
+        <li><b>Guardia Nacional</b>A partir de la edición 2025 el total nacional de personal la incorpora, por lo que no es estrictamente comparable con 2021-2024.</li>
+        <li><b>Tratamiento de vacíos</b>Las celdas sin información se preservan vacías. No se interpola, estima ni completa ninguna cifra.</li>
+      </ul>
+      <div>
+        <div class="titulo-colonias" style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--marina-900);font-weight:700;padding-bottom:9px;border-bottom:2px solid var(--naranja);margin-bottom:10px;">Módulos del censo incluidos</div>
+        <div class="localidades" style="font-size:12.5px;" id="modulos_CNSPE"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</div>
+
 <footer>
   <p><strong>Coordinación de Seguridad · Gobierno de Jalisco</strong></p>
   <div id="pieENSU">
@@ -901,6 +1137,9 @@ footer p{margin:4px 0}
   </div>
   <div id="pieENVIPE" hidden>
     <p>Fuente: INEGI, Encuesta Nacional de Victimización y Percepción sobre Seguridad Pública — <a class="liga-fuente" href="https://www.inegi.org.mx/programas/envipe/" target="_blank" rel="noopener">www.inegi.org.mx/programas/envipe/</a></p>
+  </div>
+  <div id="pieCNSPE" hidden>
+    <p>Fuente: INEGI, Censo Nacional de Seguridad Pública Estatal — <a class="liga-fuente" href="https://www.inegi.org.mx/programas/cnspe/" target="_blank" rel="noopener">www.inegi.org.mx/programas/cnspe/</a></p>
   </div>
   <p>Elaborado por: CGES/DAAV</p>
 </footer>
@@ -1732,7 +1971,7 @@ cargar();
 (function(){
   'use strict';
 
-  var VISTAS = ['ENSU','ENVIPE'];
+  var VISTAS = ['ENSU','ENVIPE','CNSPE'];
   var vistaActual = null;
 
   function normaliza(hash){
@@ -1773,9 +2012,12 @@ cargar();
       }
     });
 
-    document.title = (vista === 'ENVIPE')
-      ? 'ENVIPE — Coordinación de Seguridad, Jalisco'
-      : 'ENSU — Coordinación de Seguridad, Jalisco';
+    var TITULOS = {
+      ENSU:   'ENSU — Coordinación de Seguridad, Jalisco',
+      ENVIPE: 'ENVIPE — Coordinación de Seguridad, Jalisco',
+      CNSPE:  'CNSPE — Coordinación de Seguridad, Jalisco'
+    };
+    document.title = TITULOS[vista] || TITULOS.ENSU;
 
     if (empujarHash){
       var nuevo = '#' + vista;
@@ -4099,5 +4341,1123 @@ else iniciar();
 
 })();
 </script>
+<script>
+/* ============================================================
+   CNSPE — Modulo aislado. Todo vive dentro de esta funcion y
+   no comparte una sola variable con la ENSU ni con la ENVIPE.
+   Convencion: todo identificador global lleva el sufijo _CNSPE.
+   ============================================================ */
+(function(){
+'use strict';
+
+/* ------------------------------------------------------------
+   1. CONFIGURACION
+   ------------------------------------------------------------ */
+var SHEET_ID_CNSPE  = '1QEid3qqRJYOTRHi0U8HsEMqJz6R0zCC8mfpZKnZ2FG4';
+var SHEET_GID_CNSPE = '901982037';
+var CSV_URL_CNSPE   = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID_CNSPE +
+                      '/export?format=csv&gid=' + SHEET_GID_CNSPE;
+var FICHA_PDF_CNSPE = 'Ficha_CNSPE_2026.pdf';
+
+var ANIOS_CNSPE = [2021, 2022, 2023, 2024, 2025, 2026];
+/* Cada edicion del censo reporta el cierre del ejercicio anterior. */
+var CIERRE_CNSPE = { 2021:2020, 2022:2021, 2023:2022, 2024:2023, 2025:2024, 2026:2025 };
+/* Columna izquierda de cada par = Nacional; derecha = Jalisco. */
+var COLS_CNSPE = { 2021:[1,2], 2022:[3,4], 2023:[5,6], 2024:[7,8], 2025:[9,10], 2026:[11,12] };
+
+var COLOR_CNSPE = {
+  nacional:'#8E9AA8', jalisco:'#1B3A8C', acento:'#F07C1E',
+  alza:'#C0392B', baja:'#1E8449', neutro:'#B07B12',
+  tinta:'#0E1B2E', marina900:'#0F2154', linea:'#D9DFE8', tenue:'#5E6B7E'
+};
+var PALETA_CNSPE = ['#1B3A8C','#F07C1E','#16A085','#8E44AD','#C0392B','#B7950B','#4A86C8','#6FA83A'];
+
+/* ------------------------------------------------------------
+   2. CATALOGO DE INDICADORES
+   fila  = fila del Sheet (1-based, como se ve en la hoja)
+   ambito: 'par'   -> Nacional en col izq, Jalisco en col der
+           'unica' -> un solo valor en la col izq (fila propia)
+   ------------------------------------------------------------ */
+var MODULOS_CNSPE = [
+  { id:'estructura', pestana:'Estructura y recursos' },
+  { id:'ejercicio',  pestana:'Ejercicio de la función' },
+  { id:'formacion',  pestana:'Formación y disciplina' }
+];
+
+var IND_CNSPE = [
+  /* ---- Estructura organizacional y recursos ---- */
+  { id:'personal_jal', modulo:'estructura', fila:7, ambito:'unica', rol:'jalisco',
+    nombre:'Personal adscrito', unidad:'personas', polaridad:'mayor_mejor', kpi:true,
+    pareja:'personal_nac', destacado:true,
+    sub:'Personal adscrito a la institución de seguridad pública estatal.' },
+  { id:'personal_nac', modulo:'estructura', fila:4, ambito:'unica', rol:'nacional',
+    nombre:'Personal adscrito nacional', unidad:'personas', oculto:true },
+  { id:'personal_gn', modulo:'estructura', fila:5, ambito:'unica', rol:'nacional',
+    nombre:'Personal Guardia Nacional', unidad:'personas' },
+  { id:'personal_est', modulo:'estructura', fila:6, ambito:'unica', rol:'nacional',
+    nombre:'Personal instituciones estatales', unidad:'personas' },
+  { id:'tasa_jal', modulo:'estructura', fila:10, ambito:'unica', rol:'jalisco',
+    nombre:'Tasa policial por cada mil habitantes', unidad:'tasa', polaridad:'mayor_mejor',
+    pareja:'tasa_nac', sub:'Elementos de la policía preventiva por cada 1,000 habitantes.' },
+  { id:'tasa_nac', modulo:'estructura', fila:9, ambito:'unica', rol:'nacional',
+    nombre:'Tasa policial nacional', unidad:'tasa', oculto:true },
+  { id:'presupuesto_jal', modulo:'estructura', fila:42, ambito:'unica', rol:'jalisco',
+    nombre:'Presupuesto ejercido', unidad:'mdp', polaridad:'mayor_mejor', kpi:true,
+    pareja:'presupuesto_nac', destacado:true,
+    sub:'Presupuesto ejercido por la institución de seguridad pública estatal.' },
+  { id:'presupuesto_nac', modulo:'estructura', fila:41, ambito:'unica', rol:'nacional',
+    nombre:'Presupuesto ejercido nacional', unidad:'mdp', oculto:true },
+  { id:'comandancias', modulo:'estructura', fila:47, ambito:'unica', rol:'jalisco',
+    nombre:'Comandancias y subestaciones', unidad:'unidades', polaridad:'mayor_mejor' },
+  { id:'cuarteles', modulo:'estructura', fila:48, ambito:'unica', rol:'jalisco',
+    nombre:'Cuarteles de policía', unidad:'unidades', polaridad:'mayor_mejor' },
+  { id:'modulos_casetas', modulo:'estructura', fila:49, ambito:'unica', rol:'jalisco',
+    nombre:'Módulos y casetas', unidad:'unidades', polaridad:'mayor_mejor' },
+  { id:'camaras', modulo:'estructura', fila:50, ambito:'unica', rol:'jalisco',
+    nombre:'Cámaras de vigilancia', unidad:'unidades', polaridad:'mayor_mejor' },
+  { id:'cup', modulo:'estructura', fila:19, ambito:'par',
+    nombre:'Personal con Certificado Único Policial', unidad:'personas', polaridad:'mayor_mejor',
+    kpi:true, sub:'Elementos de las corporaciones que cuentan con CUP vigente.' },
+  { id:'lesionados', modulo:'estructura', fila:36, ambito:'par',
+    nombre:'Personal lesionado', unidad:'personas', polaridad:'menor_mejor', kpi:true,
+    destacado:true, sub:'Elementos que resultaron lesionados en el ejercicio de su función.' },
+  { id:'jubilados', modulo:'estructura', fila:38, ambito:'par',
+    nombre:'Personal jubilado', unidad:'personas', polaridad:'neutro' },
+  { id:'renuncias', modulo:'estructura', fila:39, ambito:'par',
+    nombre:'Renuncias', unidad:'personas', polaridad:'menor_mejor' },
+  { id:'fallecidos', modulo:'estructura', fila:28, ambito:'par',
+    nombre:'Personal fallecido', unidad:'personas', polaridad:'menor_mejor', kpi:true },
+
+  /* ---- Ejercicio de la funcion ---- */
+  { id:'llamadas', modulo:'ejercicio', fila:68, ambito:'par',
+    nombre:'Llamadas de emergencia atendidas', unidad:'llamadas', polaridad:'neutro', kpi:true,
+    destacado:true, sub:'Llamadas procedentes recibidas en los sistemas de emergencia.' },
+  { id:'puestas', modulo:'ejercicio', fila:76, ambito:'par',
+    nombre:'Puestas a disposición', unidad:'casos', polaridad:'neutro', kpi:true },
+  { id:'puestas_jc', modulo:'ejercicio', fila:73, ambito:'par',
+    nombre:'Puestas ante Juez Cívico', unidad:'casos', polaridad:'neutro' },
+  { id:'puestas_mp', modulo:'ejercicio', fila:74, ambito:'par',
+    nombre:'Puestas ante Ministerio Público', unidad:'casos', polaridad:'neutro' },
+  { id:'armas_jal', modulo:'ejercicio', fila:78, ambito:'unica', rol:'jalisco',
+    nombre:'Armas de fuego aseguradas', unidad:'armas', polaridad:'mayor_mejor', kpi:true },
+  { id:'enfrent_jal', modulo:'ejercicio', fila:85, ambito:'unica', rol:'jalisco',
+    nombre:'Enfrentamientos', unidad:'eventos', polaridad:'menor_mejor', kpi:true,
+    pareja:'enfrent_nac', sub:'Enfrentamientos ocurridos en la entidad.' },
+  { id:'enfrent_nac', modulo:'ejercicio', fila:84, ambito:'unica', rol:'nacional',
+    nombre:'Enfrentamientos nacional', unidad:'eventos', oculto:true },
+  { id:'empresas_jal', modulo:'ejercicio', fila:95, ambito:'unica', rol:'jalisco',
+    nombre:'Empresas de seguridad privada', unidad:'empresas', polaridad:'neutro',
+    pareja:'empresas_nac' },
+  { id:'empresas_nac', modulo:'ejercicio', fila:94, ambito:'unica', rol:'nacional',
+    nombre:'Empresas de seguridad privada nacional', unidad:'empresas', oculto:true },
+  { id:'civiles_det', modulo:'ejercicio', fila:89, ambito:'par',
+    nombre:'Civiles detenidos en enfrentamientos', unidad:'personas', polaridad:'neutro' },
+  { id:'personal_les_enf', modulo:'ejercicio', fila:91, ambito:'par',
+    nombre:'Personal lesionado en enfrentamientos', unidad:'personas', polaridad:'menor_mejor',
+    /* La edicion 2025 de esta fila repite el valor de civiles lesionados
+       (cruce de filas en la fuente). La variacion contra ese año es un
+       artefacto, no un movimiento real: se excluye de los hallazgos. */
+    anomalia:'La cifra de la edición 2025 coincide con la de civiles lesionados; la variación contra ese año no es comparable.' },
+
+  /* ---- Formacion y disciplina ---- */
+  { id:'cadetes_ing', modulo:'formacion', fila:55, ambito:'par',
+    nombre:'Cadetes que ingresaron', unidad:'personas', polaridad:'mayor_mejor', kpi:true,
+    destacado:true, sub:'Ingresos a los programas de formación inicial.' },
+  { id:'cadetes_egr', modulo:'formacion', fila:59, ambito:'par',
+    nombre:'Cadetes que egresaron', unidad:'personas', polaridad:'mayor_mejor' },
+  { id:'cadetes_des', modulo:'formacion', fila:63, ambito:'par',
+    nombre:'Cadetes que desertaron', unidad:'personas', polaridad:'menor_mejor' },
+  { id:'sedes', modulo:'formacion', fila:53, ambito:'unica', rol:'jalisco',
+    nombre:'Sedes de academias de formación', unidad:'unidades', polaridad:'mayor_mejor' },
+  { id:'quejas_jal', modulo:'formacion', fila:45, ambito:'unica', rol:'jalisco',
+    nombre:'Quejas ciudadanas en Asuntos Internos', unidad:'quejas', polaridad:'menor_mejor',
+    kpi:true, sub:'Quejas o denuncias recibidas en la Unidad de Asuntos Internos.' }
+];
+
+/* Grupos de composicion: participacion relativa por categoria. */
+var COMP_CNSPE = [
+  { id:'funcion', modulo:'estructura', titulo:'Personal por función policial',
+    filas:[
+      {f:14, et:'Prevención'}, {f:15, et:'Proximidad social'},
+      {f:16, et:'Reacción'},   {f:17, et:'Investigación'},
+      {f:13, et:'Tránsito y seguridad vial', soloNac:true}
+    ]},
+  { id:'fallecidos_causa', modulo:'estructura', titulo:'Personal fallecido, según causa',
+    filas:[
+      {f:29, et:'Causas naturales'}, {f:30, et:'Homicidio doloso'},
+      {f:31, et:'Homicidio culposo'}, {f:32, et:'Accidentes'},
+      {f:33, et:'Suicidio'}, {f:34, et:'Otras causas externas'}
+    ]},
+  { id:'condicion', modulo:'estructura', titulo:'Condición del personal',
+    filas:[
+      {f:36, et:'Lesionados'}, {f:38, et:'Jubilados'}, {f:39, et:'Renuncias'}
+    ]},
+  { id:'llamadas_sistema', modulo:'ejercicio', titulo:'Llamadas por sistema telefónico',
+    filas:[
+      {f:69, et:'Sistema 911'}, {f:70, et:'Sistema 089'}, {f:71, et:'Otro sistema'}
+    ]},
+  { id:'puestas_autoridad', modulo:'ejercicio', titulo:'Puestas a disposición por autoridad',
+    filas:[
+      {f:73, et:'Ante Juez Cívico'}, {f:74, et:'Ante Ministerio Público'}
+    ]},
+  { id:'cadetes_comp', modulo:'formacion', titulo:'Movimiento en academias',
+    filas:[
+      {f:55, et:'Ingresaron'}, {f:59, et:'Egresaron'}, {f:63, et:'Desertaron'}
+    ]}
+];
+
+/* ------------------------------------------------------------
+   3. PERSONAL POR ENTIDAD Y SEXO (cierre 2025)
+   Tabla del documento oficial del INEGI. Es un corte de un solo
+   periodo, no una serie: se guarda aparte del modelo del Sheet.
+   ------------------------------------------------------------ */
+var SEXO_CNSPE = [
+  ['Baja California Sur',44.5,55.5,913], ['Colima',41.0,59.0,598],
+  ['Querétaro',40.3,59.7,1131], ['Quintana Roo',38.7,61.3,3129],
+  ['Morelos',38.5,61.5,2222], ['Sonora',37.3,62.7,3720],
+  ['Chihuahua',36.7,63.3,4855], ['Michoacán de Ocampo',35.7,64.3,8048],
+  ['Durango',34.5,65.5,1429], ['Veracruz de Ignacio de la Llave',34.1,65.9,12184],
+  ['Aguascalientes',34.1,65.9,1262], ['Hidalgo',33.6,66.4,5625],
+  ['Jalisco',33.5,66.5,6235], ['Guanajuato',32.3,67.7,3933],
+  ['Oaxaca',30.1,69.9,9786], ['Chiapas',29.9,70.1,9974],
+  ['Puebla',29.8,70.2,7196], ['Zacatecas',29.8,70.2,3130],
+  ['Guerrero',29.5,70.5,7308], ['Nayarit',28.6,71.4,2466],
+  ['Tlaxcala',27.8,72.2,2137], ['Baja California',27.4,72.6,1346],
+  ['Coahuila de Zaragoza',27.3,72.7,3264], ['México',27.2,72.8,19501],
+  ['Nuevo León',27.0,73.0,8802], ['Estados Unidos Mexicanos',26.7,73.3,277137],
+  ['San Luis Potosí',25.4,74.6,4613], ['Tamaulipas',24.9,75.1,5041],
+  ['Guardia Nacional',22.4,77.6,121279], ['Tabasco',22.0,78.0,7116],
+  ['Yucatán',21.7,78.3,5519], ['Campeche',20.4,79.6,1584],
+  ['Sinaloa',18.5,81.5,1791]
+];
+
+/* ------------------------------------------------------------
+   4. AUDITORIA CONTRA EL DOCUMENTO OFICIAL
+   Diferencias verificadas contra INEGI, CNSPF-E 2026,
+   Resultados generales (13-ago-2026). La fuente no se altera:
+   el tablero muestra el dato del Sheet y declara la diferencia.
+   ------------------------------------------------------------ */
+var AUDITORIA_CNSPE = [
+  { tipo:'corr', ico:'&#9888;', titulo:'Personal adscrito, total nacional (edición 2026)',
+    txt:'La base registra 27,717. El valor oficial es 277,137 y coincide con la suma de sus propios componentes (GN 121,279 + Estatales 155,858). Es un dígito omitido en captura. Este tablero usa la suma de componentes para el cálculo de participaciones.' },
+  { tipo:'corr', ico:'&#9888;', titulo:'Personal fallecido por accidentes, nacional (edición 2026)',
+    txt:'La celda está vacía. El valor oficial es 96; con él, el desglose por causa cierra exactamente contra el total de 479.' },
+  { tipo:'corr', ico:'&#9888;', titulo:'Personal fallecido en Jalisco, categoría (edición 2026)',
+    txt:'Los 14 casos aparecen en «Otras causas externas». El censo los clasifica en su totalidad como «No identificado». El total de 14 no cambia; la causa reportada sí.' },
+  { tipo:'nota', ico:'&#8505;', titulo:'Presupuesto: unidades no comparables',
+    txt:'La cifra de Jalisco está en pesos corrientes y la nacional en pesos constantes de 2018. El total nacional comparable en corrientes es 136,158.1 mdp, lo que sitúa la participación real de Jalisco en 4.09 % y no en 5.7 %.' },
+  { tipo:'nota', ico:'&#8505;', titulo:'Enfrentamientos: cambio de cobertura',
+    txt:'En Jalisco ocurrieron 15 enfrentamientos, pero solo 3 involucraron a la institución estatal; los 12 restantes correspondieron a la Guardia Nacional. Comparar 15 contra los 8 del cierre anterior —que eran solo estatales— sobreestima el aumento.' },
+  { tipo:'nota', ico:'&#8505;', titulo:'Tasa policial: pérdida de decimales',
+    txt:'La base muestra la tasa redondeada a entero (1 y 0). Los valores oficiales son 1.0 nacional y 0.7 en Jalisco. Conviene ampliar los decimales de esas celdas para no perder la brecha real entre ambos.' },
+  { tipo:'nota', ico:'&#8505;', titulo:'Indicadores derivados de porcentajes',
+    txt:'Proximidad social, reacción, investigación y Certificado Único Policial se publican como porcentajes independientes que el censo advierte no deben sumarse. Los valores absolutos de la base para esos rubros son derivaciones internas, no cifras censales.' }
+];
+
+
+/* Copia de respaldo embebida: el tablero funciona aunque el Sheet no responda. */
+var RESPALDO_CNSPE = [["","","","","","","","","","","","",""],["","","","","","","","","","","","",""],["","","","","","","","","","","","",""],["Nacional Total ( GN + Estatales)","321,967","","321,676","","338,563","","362,100","","283,204","","27,717",""],["Nacional - GN","96,391","","100,365","","104,240","","126,236","","132,036","","121,279",""],["Nacional - Estatales","225,576","","221,311","","234,323","","235,864","","151,168","","155,858",""],["Jalisco","4,940","","5,818","","6,195","","6,281","","6,031","","6,235",""],["","","","","","","","","","","","",""],["Nacional","1","","1","","1","","1","","1","","1",""],["Jalisco","0","","0","","0","","0","","1","","1",""],["","","","","","","","","","","","",""],["Total","110,929","2,595","174,536","2,274","174,455","2,482","182,398","4,346","","6,031","","6,235"],["Policía de tránsito, movilidad y seguridad vial","","","","","","","10,427","","8,016","","7,047",""],["Prevención","67,292","2,595","64,424","2,274","69,747","2,482","73,776","4,346","72,258","6,031","93,264","6,235"],["Proximidad social","25,737","0","90,425","0","84,429","0","82,874","0","12,698","0","13,871","0"],["Reacción","14,709","0","15,582","0","16,663","0","22,496","0","13,303","0","24,470","0"],["Investigación","3,191","0","4,105","0","3,616","0","3,252","0","3,175","0","4,364","0"],["","","","","","","","","","","","",""],["Total","99,015","3,162","65,286","3,569","101,652","3,441","61,278","3,964","67,501","5,124","109,412","4,059"],["Guardia Nacional","","","","","","","","","116,095","N/D","95,810","N/D"],["Policía preventiva","51,546","1,777","57,390","2,073","85,720","2,027","55,563","2,295","N/D","N/D","N/D","N/D"],["Policía de tránsito","5,135","1,385","3,650","1,496","6,661","1,414","3,122","1,669","N/D","N/D","N/D","N/D"],["Policía bancaria, comercial y/o auxiliar","25,909","0","2,582","0","5,398","0","1,254","0","N/D","N/D","N/D","N/D"],["Policía cibernética","83","0","N/A","0","N/A","0","N/A","N/A","N/D","N/D","N/D","N/D"],["Otro tipo de corporación policial","2,448","0","1,664","0","2,202","0","1,339","0","N/D","N/D","N/D","N/D"],["No especificado","13,894","0","N/A","0","1,671","0","N/A","N/A","N/D","N/D","N/D","N/D"],["","","","","","","","","","","","",""],["Total","1,449","34","945","30","522","7","603","8","513","18","479","14"],["Causas naturales","1,194","20","728","25","236","0","313","6","252","0","215","0"],["Homicidio Doloso","103","0","96","1","69","0","81","0","99","0","76","0"],["Homicidio Culposo","6","0","5","0","5","0","2","0","0","0","3","0"],["Accidentes","74","0","72","1","56","0","114","0","94","0","","0"],["Suicidio","6","0","9","3","9","0","6","1","8","0","7","0"],["Otras causas externas","22","14","32","0","22","0","10","0","34","18","35","14"],["","","","","","","","","","","","",""],["Lesionados","N/A","N/A","1,591","214","3,102","104","2,658","1","2,645","67","3,059","410"],["Desaparecidos","N/A","N/A","5","1","4","N/A","8","N/A","N/D","N/D","10","N/D"],["Jubilados","N/A","N/A","1,695","220","1,645","196","3,421","210","1,464","204","1,405","168"],["Renunció","","","","","6,246","121","7,917","199","7,699","163","12,763","189"],["","","","","","","","","","","","",""],["Nacional","96,571","","93,226","","102,958","","113,946","","98,571","","97,128",""],["Jalisco","4,325","","4,334","","4,585","","5,148","","5,139","","5,570",""],["","","","","","","","","","","","",""],["","","","","","","","","","","","",""],["Jalisco","175","","145","","182","","233","","N/A","","0",""],["","","","","","","","","","","","",""],["Jalisco - Comandancias, estaciones y subestaciones de la policía","4","","3","","3","","3","","3","","4",""],["Jalisco - Cuarteles de policía","7","","16","","16","","16","","16","","16",""],["Jalisco - Módulos y casetas de la policía","0","","0","","0","","0","","7","","11",""],["Jalisco - Cámaras de Vigilancia","5,943","","N/A","","N/A","","5,056","","5,034","","",""],["","","","","","","","","","","","",""],["","","","","","","","","","","","",""],["Jalisco","1","","1","","1","","1","","1","","1",""],["","","","","","","","","","","","",""],["Total","10,771","132","14,025","453","15,474","551","13,158","208","28,480","280","15,181","150"],["Hombres","6,976","107","9,411","329","9,687","268","8,187","108","18,974","132","",""],["Mujeres","3,795","25","4,614","124","5,787","283","4,971","100","9,506","148","",""],["","","","","","","","","","","","",""],["Total","9,128","127","11,281","453","12,223","550","10,465","207","25,823","277","13,264","138"],["Hombres","6,028","102","7,267","329","7,632","268","6,386","107","17,275","129","",""],["Mujeres","3,100","25","4,014","124","4,591","282","4,079","100","8,548","148","",""],["","","","","","","","","","","","",""],["Total","1,557","5","3,239","0","2,908","1","2,659","1","1,599","3","1,221","12"],["Hombres","963","5","2,412","0","1,885","0","1,705","1","1,055","3","",""],["Mujeres","594","0","827","0","1,023","1","954","0","544","0","",""],["","","","","","","","","","","","",""],["","","","","","","","","","","","",""],["Total","15,758,402","897,146","15,998,381","1,043,660","15,808,259","922,931","16,113,039","880,801","13,669,904","887,191","14,326,061","963,295"],["Sistema 911","15,427,965","848,167","15,635,160","1,001,105","15,500,930","880,964","15,791,613","838,438","13,365,693","847,630","13,611,171",""],["Sistema 089","282,377","11,380","305,912","14,156","277,359","11,995","287,589","13,520","268,571","13,693","329,534",""],["Otro sistema","48,061","37,599","57,309","28,399","29,972","29,972","33,837","28,843","35,640","25,868","84,018",""],["","","","","","","","","","","","",""],["Ante el Juez Cívico u Oficial Calificador","539,038","1,113","299,204","708","282,898","484","319,961","220","283,691","55","243,745","46"],["Ante el Ministerio Público","200,418","1,651","180,487","1,343","170,587","1,126","146,864","1,556","146,505","1,508","169,382","858"],["","","","","","","","","","","","",""],["Puestas a disposición de objetos y personas. Jalisco","846,973","2,764","562,754","2,106","662,307","1,784","555,040","4,465","430,196","1,563","413,127","904"],["","","","","","","","","","","","",""],["Jalisco","156","","165","","152","","219","","191","","265",""],["","","","","","","","","","","","",""],["Total","","","164,431","1,343","74,913","1,749","89,095","1,505","","","",""],["","","","","","","","","","","","",""],["Boletas de infracción levantadas","2,078,731","760,992","6,727,666","789,772","5,192,681","772,299","2,329,107","907,338","","","",""],["","","","","","","","","","","","",""],["Nacional","716","","583","","444","","667","","755","","830",""],["Jalisco","13","","9","","17","","21","","8","","15",""],["","","","","","","","","","","","",""],["Lesionados","93","9","52","0","49","0","67","2","95","67","112","0"],["Fallecidos","281","3","135","9","137","4","241","18","167","","333","0"],["Detenidos","352","9","253","7","284","14","555","7","618","","565","6"],["","","","","","","","","","","","",""],["Lesionados","N/A","N/A","95","5","76","3","178","0","3,182","67","208","1"],["Fallecidos","N/A","N/A","40","1","35","1","72","0","578","18","54","0"],["","","","","","","","","","","","",""],["Nacional","5,275","","5,875","","6,138","","6,263","","5,124","","5,155",""],["Jalisco","265","","248","","58","","106","","85","","53",""]];
+
+/* ------------------------------------------------------------
+   5. LECTURA Y PARSEO
+   ------------------------------------------------------------ */
+var ESTADO_CNSPE = { matriz:null, modelo:null, anio:2026, modulo:'estructura',
+                     indSerie:'personal_jal', comp:'funcion', fuente:'respaldo', graficas:{} };
+
+function bajarCSV_CNSPE(){
+  return fetch(CSV_URL_CNSPE + '&_=' + Date.now(), {cache:'no-store'}).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  });
+}
+
+function parseCSV_CNSPE(txt){
+  var filas=[], fila=[], campo='', comillas=false;
+  for(var i=0;i<txt.length;i++){
+    var c=txt[i], sig=txt[i+1];
+    if(comillas){
+      if(c==='"'&&sig==='"'){campo+='"';i++;}
+      else if(c==='"'){comillas=false;}
+      else{campo+=c;}
+    }else{
+      if(c==='"'){comillas=true;}
+      else if(c===','){fila.push(campo.trim());campo='';}
+      else if(c==='\r'){}
+      else if(c==='\n'){fila.push(campo.trim());filas.push(fila);fila=[];campo='';}
+      else{campo+=c;}
+    }
+  }
+  if(campo.length>0||fila.length>0){fila.push(campo.trim());filas.push(fila);}
+  return filas;
+}
+
+/* Convierte el texto de una celda a numero. Preserva los vacios como null:
+   nunca se interpola ni se asume cero. */
+function celda_CNSPE(v){
+  if(v===null || v===undefined) return null;
+  var t = String(v).trim();
+  if(t==='' || t==='N/D' || t==='N/A' || t==='-' || t==='—') return null;
+  t = t.replace(/\$/g,'').replace(/\s/g,'').replace(/,/g,'');
+  var n = parseFloat(t);
+  return isNaN(n) ? null : n;
+}
+
+function valor_CNSPE(matriz, fila, anio, lado){
+  var f = matriz[fila-1];
+  if(!f) return null;
+  var par = COLS_CNSPE[anio];
+  if(!par) return null;
+  return celda_CNSPE(f[ lado==='jalisco' ? par[1] : par[0] ]);
+}
+
+/* ------------------------------------------------------------
+   6. MODELO
+   ------------------------------------------------------------ */
+function construirModelo_CNSPE(matriz){
+  var series = {};
+
+  IND_CNSPE.forEach(function(ind){
+    var jal={}, nac={};
+    ANIOS_CNSPE.forEach(function(a){
+      if(ind.ambito==='par'){
+        nac[a] = valor_CNSPE(matriz, ind.fila, a, 'nacional');
+        jal[a] = valor_CNSPE(matriz, ind.fila, a, 'jalisco');
+      }else{
+        var v = valor_CNSPE(matriz, ind.fila, a, 'nacional');
+        if(ind.rol==='jalisco'){ jal[a]=v; nac[a]=null; }
+        else { nac[a]=v; jal[a]=null; }
+      }
+    });
+    series[ind.id] = { def:ind, jalisco:jal, nacional:nac };
+  });
+
+  /* El total nacional de personal de la edicion 2026 viene con un digito
+     omitido en la fuente. Para las participaciones se usa la suma de sus
+     componentes, que si es consistente; el dato de la fuente se muestra
+     tal cual en la tabla y la diferencia se declara en la auditoria. */
+  var totalPersonalNac = {};
+  ANIOS_CNSPE.forEach(function(a){
+    var t  = series.personal_nac.nacional[a];
+    var gn = series.personal_gn.nacional[a];
+    var es = series.personal_est.nacional[a];
+    if(gn!==null && es!==null){
+      var suma = gn + es;
+      totalPersonalNac[a] = (t===null || Math.abs(t-suma) > Math.max(2, suma*0.02)) ? suma : t;
+    } else {
+      totalPersonalNac[a] = t;
+    }
+  });
+
+  var comps = {};
+  COMP_CNSPE.forEach(function(g){
+    var cats = g.filas.map(function(x){
+      var jal={}, nac={};
+      ANIOS_CNSPE.forEach(function(a){
+        nac[a] = valor_CNSPE(matriz, x.f, a, 'nacional');
+        jal[a] = x.soloNac ? null : valor_CNSPE(matriz, x.f, a, 'jalisco');
+      });
+      return { etiqueta:x.et, jalisco:jal, nacional:nac };
+    });
+    comps[g.id] = { def:g, categorias:cats };
+  });
+
+  return { series:series, comps:comps, totalPersonalNac:totalPersonalNac };
+}
+
+/* ------------------------------------------------------------
+   7. FORMATO
+   ------------------------------------------------------------ */
+function fmt_CNSPE(v, unidad){
+  if(v===null || v===undefined) return '—';
+  if(unidad==='tasa')  return v.toLocaleString('es-MX',{minimumFractionDigits:1, maximumFractionDigits:2});
+  if(unidad==='mdp')   return '$' + v.toLocaleString('es-MX',{maximumFractionDigits:1});
+  return Math.round(v).toLocaleString('es-MX');
+}
+function pct_CNSPE(v, dec){
+  if(v===null || v===undefined || isNaN(v)) return '—';
+  dec = (dec===undefined) ? 1 : dec;
+  return v.toLocaleString('es-MX',{minimumFractionDigits:dec, maximumFractionDigits:dec}) + ' %';
+}
+function delta_CNSPE(v0, v1){
+  if(v0===null||v1===null||v0===0||v0===undefined||v1===undefined) return null;
+  return ((v1-v0)/v0)*100;
+}
+function signo_CNSPE(p, dec){
+  if(p===null) return '—';
+  dec = (dec===undefined) ? 1 : dec;
+  return (p>0?'+':'') + p.toLocaleString('es-MX',{minimumFractionDigits:dec, maximumFractionDigits:dec}) + ' %';
+}
+/* Clase de color segun si el movimiento es bueno o malo para el indicador. */
+function claseDelta_CNSPE(p, polaridad){
+  if(p===null) return 'd-nd';
+  if(Math.abs(p) < 0.05) return 'd-igual';
+  if(polaridad==='neutro' || !polaridad) return 'd-igual';
+  var sube = p > 0;
+  var bueno = (polaridad==='mayor_mejor') ? sube : !sube;
+  return bueno ? 'd-mejora' : 'd-deterioro';
+}
+function anioPrevio_CNSPE(a){
+  var i = ANIOS_CNSPE.indexOf(a);
+  return i > 0 ? ANIOS_CNSPE[i-1] : null;
+}
+/* Referencia nacional de un indicador: la del propio indicador, la de su
+   pareja declarada, o —para personal adscrito— el total ya reconciliado
+   contra la suma de sus componentes. Centralizado aqui para que las
+   tarjetas, las barras de participacion y los hallazgos usen todos la
+   misma cifra y no se contradigan entre si. */
+function refNacional_CNSPE(modelo, ind, a){
+  if(ind.id==='personal_jal') return modelo.totalPersonalNac[a];
+  var s = modelo.series[ind.id];
+  var v = s ? s.nacional[a] : null;
+  if(v===null && ind.pareja && modelo.series[ind.pareja]){
+    v = (ind.pareja==='personal_nac') ? modelo.totalPersonalNac[a]
+                                      : modelo.series[ind.pareja].nacional[a];
+  }
+  return v;
+}
+function ultimoConDato_CNSPE(serie, hasta){
+  for(var i=ANIOS_CNSPE.indexOf(hasta); i>=0; i--){
+    var a = ANIOS_CNSPE[i];
+    if(serie[a]!==null && serie[a]!==undefined) return {anio:a, valor:serie[a]};
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------
+   8. PINTADO
+   ------------------------------------------------------------ */
+var $C = function(id){ return document.getElementById(id + '_CNSPE'); };
+
+function pintarPestanas_CNSPE(){
+  var cont = $C('pestanas');
+  cont.innerHTML = '';
+  MODULOS_CNSPE.forEach(function(m){
+    var b = document.createElement('button');
+    b.className = 'pest';
+    b.type = 'button';
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected', m.id===ESTADO_CNSPE.modulo ? 'true':'false');
+    b.textContent = m.pestana;
+    b.addEventListener('click', function(){
+      ESTADO_CNSPE.modulo = m.id;
+      var pri = IND_CNSPE.filter(function(i){ return i.modulo===m.id && !i.oculto; })[0];
+      if(pri) ESTADO_CNSPE.indSerie = pri.id;
+      var pc = COMP_CNSPE.filter(function(g){ return g.modulo===m.id; })[0];
+      if(pc) ESTADO_CNSPE.comp = pc.id;
+      pintarTodo_CNSPE();
+    });
+    cont.appendChild(b);
+  });
+}
+
+function pintarSelectorAnio_CNSPE(){
+  var s = $C('selAnio');
+  if(s.options.length) return;
+  ANIOS_CNSPE.slice().reverse().forEach(function(a){
+    var o = document.createElement('option');
+    o.value = a;
+    o.textContent = 'CNSPE ' + a + ' · cierre ' + CIERRE_CNSPE[a];
+    if(a===ESTADO_CNSPE.anio) o.selected = true;
+    s.appendChild(o);
+  });
+  s.addEventListener('change', function(){
+    ESTADO_CNSPE.anio = parseInt(s.value,10);
+    pintarTodo_CNSPE();
+  });
+}
+
+function pintarPortada_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio;
+  var personal = M.series.personal_jal.jalisco[a];
+  var totalNac = M.totalPersonalNac[a];
+  var peso = (personal!==null && totalNac) ? (personal/totalNac*100) : null;
+
+  $C('portadaCat').textContent = 'Censo Nacional de Seguridad Pública Estatal · edición ' + a;
+  $C('portadaTitulo').textContent = 'Jalisco frente al panorama nacional';
+  $C('portadaSub').textContent =
+    'Gestión y desempeño de la institución encargada de la función de seguridad pública. ' +
+    'Las cifras de la edición ' + a + ' corresponden al cierre del ejercicio ' + CIERRE_CNSPE[a] + '.';
+  $C('metaEdicion').textContent  = 'CNSPE ' + a;
+  $C('metaCierre').textContent   = CIERRE_CNSPE[a];
+  $C('metaPersonal').textContent = fmt_CNSPE(personal,'personas');
+  $C('metaPeso').textContent     = peso!==null ? pct_CNSPE(peso,2) : '—';
+}
+
+function pintarKPIs_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio, prev = anioPrevio_CNSPE(a);
+  var cont = $C('kpis');
+  cont.innerHTML = '';
+
+  IND_CNSPE.filter(function(i){ return i.kpi && i.modulo===ESTADO_CNSPE.modulo; }).forEach(function(ind){
+    var s = M.series[ind.id];
+    var esJal = (ind.ambito==='par' || ind.rol==='jalisco');
+    var vJal = esJal ? s.jalisco[a] : null;
+    var vPrev = (esJal && prev!==null) ? s.jalisco[prev] : null;
+    var d = delta_CNSPE(vPrev, vJal);
+
+    /* referencia nacional reconciliada (ver refNacional_CNSPE) */
+    var vNac = refNacional_CNSPE(M, ind, a);
+
+    var cls = 'cnspe-kpi';
+    if(d!==null && ind.polaridad && ind.polaridad!=='neutro'){
+      var bueno = (ind.polaridad==='mayor_mejor') ? d>0 : d<0;
+      if(Math.abs(d)>=0.05) cls += bueno ? ' cnspe-ok' : ' cnspe-alerta';
+    }
+
+    var div = document.createElement('div');
+    div.className = cls;
+    var html = '<div class="cnspe-rot">' + ind.nombre + '</div>' +
+               '<div class="cnspe-val">' + fmt_CNSPE(vJal, ind.unidad) + '</div>';
+    if(vNac!==null && vNac!==undefined){
+      html += '<div class="cnspe-ref">Nacional: ' + fmt_CNSPE(vNac, ind.unidad) + '</div>';
+    }
+    if(d!==null){
+      html += '<div class="cnspe-var ' + claseDelta_CNSPE(d, ind.polaridad) + '">' +
+              signo_CNSPE(d) + ' vs. ' + prev + '</div>';
+    }else{
+      html += '<div class="cnspe-var d-nd">Sin comparativo</div>';
+    }
+    div.innerHTML = html;
+    cont.appendChild(div);
+  });
+}
+
+/* Peso de cada indicador de Jalisco dentro del total nacional, contrastado
+   contra su peso en personal. Solo indicadores con ambos lados disponibles. */
+function pintarPeso_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio;
+  var cont = $C('peso');
+  cont.innerHTML = '';
+
+  var personal = M.series.personal_jal.jalisco[a];
+  var totalNac = M.totalPersonalNac[a];
+  var base = (personal!==null && totalNac) ? (personal/totalNac*100) : null;
+
+  var filas = [];
+  IND_CNSPE.forEach(function(ind){
+    if(ind.oculto || ind.modulo!==ESTADO_CNSPE.modulo) return;
+    var s = M.series[ind.id];
+    var vJal = s.jalisco[a];
+    var vNac = refNacional_CNSPE(M, ind, a);
+    if(vJal===null || !vNac) return;
+    if(ind.unidad==='tasa') return;   /* una tasa no es sumable: no aplica participacion */
+    filas.push({ nombre:ind.nombre, p:(vJal/vNac*100), jal:vJal, nac:vNac, unidad:ind.unidad });
+  });
+
+  if(!filas.length){
+    cont.innerHTML = '<p class="sub">Este módulo no tiene indicadores con referencia nacional comparable en la edición seleccionada.</p>';
+    return;
+  }
+  filas.sort(function(x,y){ return y.p - x.p; });
+  var max = Math.max.apply(null, filas.map(function(f){ return f.p; }).concat(base||0)) * 1.12;
+
+  filas.forEach(function(f){
+    var clase = 'cnspe-peso-barra';
+    if(base!==null){
+      if(f.p > base*1.6) clase += ' cnspe-b-alta';
+      else if(f.p < base*0.6) clase += ' cnspe-b-ok';
+    }
+    var d = document.createElement('div');
+    d.className = 'cnspe-peso-fila';
+    d.innerHTML =
+      '<div><div class="cnspe-peso-nom">' + f.nombre +
+        '<span class="cnspe-peso-pista">' + fmt_CNSPE(f.jal,f.unidad) + ' de ' + fmt_CNSPE(f.nac,f.unidad) + ' nacionales</span>' +
+      '</div>' +
+      '<div class="cnspe-peso-riel">' +
+        '<div class="' + clase + '" style="width:' + Math.min(100,(f.p/max*100)) + '%"></div>' +
+        (base!==null ? '<div class="cnspe-peso-ref" style="left:' + Math.min(100,(base/max*100)) + '%"></div>' : '') +
+      '</div></div>' +
+      '<div class="cnspe-peso-num">' + pct_CNSPE(f.p,2) + '</div>';
+    cont.appendChild(d);
+  });
+
+  if(base!==null){
+    var nota = document.createElement('p');
+    nota.className = 'pista';
+    nota.innerHTML = '&#9679; La línea vertical marca ' + pct_CNSPE(base,2) +
+                     ', el peso de Jalisco en el personal de seguridad pública del país.';
+    cont.appendChild(nota);
+  }
+}
+
+function pintarTira_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio, prev = anioPrevio_CNSPE(a);
+  var cont = $C('tira');
+  cont.innerHTML = '';
+
+  var filas = [];
+  IND_CNSPE.forEach(function(ind){
+    if(ind.oculto || ind.modulo!==ESTADO_CNSPE.modulo) return;
+    var s = M.series[ind.id];
+    var esJal = (ind.ambito==='par' || ind.rol==='jalisco');
+    if(!esJal) return;
+    var v = s.jalisco[a];
+    if(v===null) return;
+    var d = prev!==null ? delta_CNSPE(s.jalisco[prev], v) : null;
+    filas.push({ ind:ind, v:v, d:d });
+  });
+
+  if(!filas.length){
+    cont.innerHTML = '<p class="sub">Sin datos de Jalisco para este módulo en la edición seleccionada.</p>';
+    return;
+  }
+  filas.sort(function(x,y){
+    var ax = x.d===null ? -1 : Math.abs(x.d);
+    var ay = y.d===null ? -1 : Math.abs(y.d);
+    return ay - ax;
+  });
+
+  filas.forEach(function(f, i){
+    var clase = claseDelta_CNSPE(f.d, f.ind.polaridad);
+    var color = clase==='d-mejora' ? COLOR_CNSPE.baja
+              : clase==='d-deterioro' ? COLOR_CNSPE.alza
+              : COLOR_CNSPE.nacional;
+    var d = document.createElement('div');
+    d.className = 'reng';
+    d.innerHTML =
+      '<span class="barra" style="background:' + color + '"></span>' +
+      '<span class="nom">' + f.ind.nombre +
+        (f.ind.anomalia ? ' <span title="' + f.ind.anomalia + '" style="color:var(--naranja);cursor:help">&#9888;</span>' : '') +
+      '</span>' +
+      '<span class="der">' +
+        '<span class="val">' + fmt_CNSPE(f.v, f.ind.unidad) + '</span><br>' +
+        '<span class="delta ' + (f.ind.anomalia ? 'd-nd' : clase) + '">' +
+          (f.d===null ? 'sin comparativo'
+                      : (f.ind.anomalia ? 'comparativo no confiable' : signo_CNSPE(f.d) + ' vs. ' + prev)) +
+        '</span>' +
+      '</span>';
+    cont.appendChild(d);
+    if(i < filas.length-1){
+      var sep = document.createElement('div');
+      sep.className = 'sep-ent';
+      cont.appendChild(sep);
+    }
+  });
+}
+
+/* ---- Graficas ---- */
+function destruir_CNSPE(clave){
+  var g = ESTADO_CNSPE.graficas[clave];
+  if(g){ try{ g.destroy(); }catch(e){} ESTADO_CNSPE.graficas[clave] = null; }
+}
+
+function pintarSerie_CNSPE(){
+  var M = ESTADO_CNSPE.modelo;
+  var ind = IND_CNSPE.filter(function(i){ return i.id===ESTADO_CNSPE.indSerie; })[0];
+  if(!ind) return;
+  var s = M.series[ind.id];
+
+  var datosJal = ANIOS_CNSPE.map(function(a){ return s.jalisco[a]; });
+  var datosNac = ANIOS_CNSPE.map(function(a){
+    var v = s.nacional[a];
+    if(v===null && ind.pareja && M.series[ind.pareja]) v = M.series[ind.pareja].nacional[a];
+    if(ind.id==='personal_jal') v = M.totalPersonalNac[a];
+    return v;
+  });
+  var hayNac = datosNac.some(function(v){ return v!==null; });
+  var hayJal = datosJal.some(function(v){ return v!==null; });
+
+  $C('tituloSerie').textContent = ind.nombre + ' · serie 2021-2026';
+
+  var ds = [];
+  if(hayNac){
+    ds.push({ label:'Nacional', data:datosNac, borderColor:COLOR_CNSPE.nacional,
+      backgroundColor:COLOR_CNSPE.nacional, yAxisID:'y', tension:.3, spanGaps:false,
+      pointRadius:4, pointHoverRadius:6, borderWidth:2.5 });
+  }
+  if(hayJal){
+    ds.push({ label:'Jalisco', data:datosJal, borderColor:COLOR_CNSPE.jalisco,
+      backgroundColor:COLOR_CNSPE.jalisco, yAxisID: hayNac ? 'y2' : 'y', tension:.3, spanGaps:false,
+      pointRadius:4, pointHoverRadius:6, borderWidth:2.5 });
+  }
+
+  var escalas = {
+    x:{ grid:{display:false}, ticks:{ font:{size:12} } },
+    y:{ beginAtZero:true, position:'left',
+        title:{ display:hayNac&&hayJal, text:'Nacional', font:{size:11} },
+        ticks:{ callback:function(v){ return fmt_CNSPE(v, ind.unidad); }, font:{size:11} },
+        grid:{ color:'rgba(217,223,232,.6)' } }
+  };
+  if(hayNac && hayJal){
+    escalas.y2 = { beginAtZero:true, position:'right',
+      title:{ display:true, text:'Jalisco', font:{size:11} },
+      ticks:{ callback:function(v){ return fmt_CNSPE(v, ind.unidad); }, font:{size:11} },
+      grid:{ display:false } };
+  }
+
+  destruir_CNSPE('serie');
+  ESTADO_CNSPE.graficas.serie = new Chart($C('gSerie'), {
+    type:'line',
+    data:{ labels:ANIOS_CNSPE.map(function(a){ return String(a); }), datasets:ds },
+    options:{
+      responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ usePointStyle:true, font:{size:12}, padding:16 } },
+        tooltip:{ callbacks:{
+          title:function(it){ var a=parseInt(it[0].label,10); return 'CNSPE ' + a + ' · cierre ' + CIERRE_CNSPE[a]; },
+          label:function(ctx){ return ctx.dataset.label + ': ' + fmt_CNSPE(ctx.parsed.y, ind.unidad); }
+        }}
+      },
+      scales:escalas
+    }
+  });
+}
+
+/* Composicion normalizada a 100 % por ambito: compara estructura, no magnitud. */
+function pintarComp_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio;
+  var g = M.comps[ESTADO_CNSPE.comp];
+  if(!g) return;
+
+  $C('tituloComp').textContent = g.def.titulo;
+
+  function mejorAnio(lado){
+    for(var i=ANIOS_CNSPE.indexOf(a); i>=0; i--){
+      var an = ANIOS_CNSPE[i];
+      var hay = g.categorias.some(function(c){ return c[lado][an]!==null; });
+      if(hay) return an;
+    }
+    return null;
+  }
+  var aN = mejorAnio('nacional'), aJ = mejorAnio('jalisco');
+
+  var totN = 0, totJ = 0;
+  g.categorias.forEach(function(c){
+    if(aN!==null && c.nacional[aN]!==null) totN += c.nacional[aN];
+    if(aJ!==null && c.jalisco[aJ]!==null)  totJ += c.jalisco[aJ];
+  });
+
+  var ds = g.categorias.map(function(c, i){
+    var vN = (aN!==null) ? c.nacional[aN] : null;
+    var vJ = (aJ!==null) ? c.jalisco[aJ]  : null;
+    return {
+      label:c.etiqueta,
+      data:[ (vN!==null && totN) ? (vN/totN*100) : null,
+             (vJ!==null && totJ) ? (vJ/totJ*100) : null ],
+      crudos:[vN, vJ],
+      backgroundColor:PALETA_CNSPE[i % PALETA_CNSPE.length],
+      borderWidth:0, barPercentage:.62
+    };
+  });
+
+  var etiquetas = [
+    'Nacional' + (aN!==null ? ' (' + aN + ')' : ''),
+    'Jalisco'  + (aJ!==null ? ' (' + aJ + ')' : '')
+  ];
+
+  destruir_CNSPE('comp');
+  ESTADO_CNSPE.graficas.comp = new Chart($C('gComp'), {
+    type:'bar',
+    data:{ labels:etiquetas, datasets:ds },
+    options:{
+      responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ usePointStyle:true, font:{size:11}, padding:12 } },
+        tooltip:{
+          /* En movil es imposible apuntar a una franja de 2 %: el tooltip
+             muestra de golpe todas las categorias de la columna. */
+          callbacks:{
+            title:function(it){
+              var idx = it[0].dataIndex;
+              return etiquetas[idx] + ' · total ' + fmt_CNSPE(idx===0?totN:totJ,'personas');
+            },
+            label:function(ctx){
+              var crudo = ctx.dataset.crudos[ctx.dataIndex];
+              if(ctx.parsed.y===null) return ctx.dataset.label + ': sin dato';
+              return ctx.dataset.label + ': ' + fmt_CNSPE(crudo,'personas') +
+                     ' (' + ctx.parsed.y.toFixed(1) + ' %)';
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ stacked:true, grid:{display:false} },
+        y:{ stacked:true, beginAtZero:true, max:100,
+            ticks:{ callback:function(v){ return v + ' %'; }, font:{size:11} },
+            grid:{ color:'rgba(217,223,232,.6)' } }
+      }
+    }
+  });
+}
+
+function pintarCadetes_CNSPE(){
+  var M = ESTADO_CNSPE.modelo;
+  var ing = M.series.cadetes_ing.jalisco, egr = M.series.cadetes_egr.jalisco, des = M.series.cadetes_des.jalisco;
+
+  destruir_CNSPE('cadetes');
+  ESTADO_CNSPE.graficas.cadetes = new Chart($C('gCadetes'), {
+    type:'bar',
+    data:{
+      labels:ANIOS_CNSPE.map(function(a){ return String(a); }),
+      datasets:[
+        { label:'Ingresaron', data:ANIOS_CNSPE.map(function(a){ return ing[a]; }),
+          backgroundColor:COLOR_CNSPE.jalisco, borderWidth:0 },
+        { label:'Egresaron', data:ANIOS_CNSPE.map(function(a){ return egr[a]; }),
+          backgroundColor:'#4A86C8', borderWidth:0 },
+        { label:'Desertaron', data:ANIOS_CNSPE.map(function(a){ return des[a]; }),
+          backgroundColor:COLOR_CNSPE.alza, borderWidth:0 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ usePointStyle:true, font:{size:12}, padding:16 } },
+        tooltip:{ callbacks:{
+          title:function(it){ var a=parseInt(it[0].label,10); return 'CNSPE ' + a + ' · cierre ' + CIERRE_CNSPE[a]; },
+          label:function(ctx){ return ctx.dataset.label + ': ' + fmt_CNSPE(ctx.parsed.y,'personas'); }
+        }}
+      },
+      scales:{
+        x:{ grid:{display:false} },
+        y:{ beginAtZero:true, ticks:{ callback:function(v){ return fmt_CNSPE(v,'personas'); }, font:{size:11} },
+            grid:{ color:'rgba(217,223,232,.6)' } }
+      }
+    }
+  });
+}
+
+function pintarSexo_CNSPE(){
+  var cont = $C('sexo');
+  cont.innerHTML = '';
+  var hitos = ['Jalisco','Estados Unidos Mexicanos','Guardia Nacional'];
+  SEXO_CNSPE.forEach(function(r){
+    var nom=r[0], pm=r[1], ph=r[2], tot=r[3];
+    var d = document.createElement('div');
+    d.className = 'cnspe-sexo-fila' + (hitos.indexOf(nom)!==-1 ? ' cnspe-hito' : '');
+    d.innerHTML =
+      '<div class="cnspe-sexo-nom" title="' + nom + '">' + nom + '</div>' +
+      '<div class="cnspe-sexo-riel">' +
+        '<div class="cnspe-sexo-m" style="width:' + pm + '%" title="Mujeres ' + pm + ' %"></div>' +
+        '<div class="cnspe-sexo-h" style="width:' + ph + '%" title="Hombres ' + ph + ' %"></div>' +
+      '</div>' +
+      '<div class="cnspe-sexo-num">' + pm.toFixed(1) + ' % · ' + fmt_CNSPE(tot,'personas') + '</div>';
+    cont.appendChild(d);
+  });
+}
+
+/* Los hallazgos se calculan del dato, no son texto fijo. */
+function pintarHallazgos_CNSPE(){
+  var M = ESTADO_CNSPE.modelo, a = ESTADO_CNSPE.anio, prev = anioPrevio_CNSPE(a);
+  var cont = $C('hallazgos');
+  cont.innerHTML = '';
+  var items = [];
+
+  var personal = M.series.personal_jal.jalisco[a];
+  var totalNac = M.totalPersonalNac[a];
+  var base = (personal!==null && totalNac) ? (personal/totalNac*100) : null;
+
+  /* 1. Mayor movimiento del periodo. Se excluyen los indicadores con una
+        anomalia declarada en la fuente: su variacion es un artefacto de
+        captura y encabezar con ella daria una lectura falsa. */
+  var mov = null;
+  IND_CNSPE.forEach(function(ind){
+    if(ind.oculto || ind.anomalia || ind.modulo!==ESTADO_CNSPE.modulo || !prev) return;
+    var s = M.series[ind.id];
+    var d = delta_CNSPE(s.jalisco[prev], s.jalisco[a]);
+    if(d===null) return;
+    if(!mov || Math.abs(d) > Math.abs(mov.d)) mov = { ind:ind, d:d, v:s.jalisco[a], v0:s.jalisco[prev] };
+  });
+  if(mov){
+    var cl = claseDelta_CNSPE(mov.d, mov.ind.polaridad);
+    items.push({
+      clase: cl==='d-deterioro' ? 'h-alerta' : (cl==='d-mejora' ? 'h-exito' : 'h-tendencia'),
+      titulo:'Mayor movimiento del periodo',
+      txt:'<b>' + mov.ind.nombre + '</b> pasó de <span class="cifra">' + fmt_CNSPE(mov.v0, mov.ind.unidad) +
+          '</span> a <span class="cifra">' + fmt_CNSPE(mov.v, mov.ind.unidad) + '</span> entre las ediciones ' +
+          prev + ' y ' + a + ', una variación de <span class="cifra">' + signo_CNSPE(mov.d) + '</span>.'
+    });
+  }
+
+  /* 2. Indicador mas sobrerrepresentado respecto al peso en personal */
+  if(base!==null){
+    var sobre = null;
+    IND_CNSPE.forEach(function(ind){
+      if(ind.oculto || ind.modulo!==ESTADO_CNSPE.modulo || ind.unidad==='tasa') return;
+      var s = M.series[ind.id];
+      var vJ = s.jalisco[a], vN = refNacional_CNSPE(M, ind, a);
+      if(vJ===null || !vN) return;
+      var p = vJ/vN*100;
+      if(!sobre || p > sobre.p) sobre = { ind:ind, p:p, v:vJ, n:vN };
+    });
+    if(sobre && sobre.p > base*1.4){
+      items.push({
+        clase:'h-critico',
+        titulo:'Indicador por encima del peso del estado',
+        txt:'Jalisco concentra <span class="cifra">' + pct_CNSPE(sobre.p,2) + '</span> del total nacional en <b>' +
+            sobre.ind.nombre.toLowerCase() + '</b>, con <span class="cifra">' + pct_CNSPE(base,2) +
+            '</span> del personal de seguridad pública del país: ' +
+            '<span class="cifra">' + (sobre.p/base).toFixed(1) + ' veces</span> su peso proporcional.'
+      });
+    }
+  }
+
+  /* 3. Brecha en la tasa policial */
+  var tJ = M.series.tasa_jal.jalisco[a], tN = M.series.tasa_nac.nacional[a];
+  if(tJ!==null && tN!==null && ESTADO_CNSPE.modulo==='estructura'){
+    items.push({
+      clase: tJ < tN ? 'h-alerta' : 'h-exito',
+      titulo:'Densidad policial',
+      txt:'La tasa de Jalisco es de <span class="cifra">' + fmt_CNSPE(tJ,'tasa') +
+          '</span> elementos por cada mil habitantes, frente a <span class="cifra">' + fmt_CNSPE(tN,'tasa') +
+          '</span> del promedio nacional.'
+    });
+  }
+
+  /* 4. Carga operativa por elemento */
+  if(ESTADO_CNSPE.modulo==='ejercicio'){
+    var llJ = M.series.llamadas.jalisco[a], llN = M.series.llamadas.nacional[a];
+    if(llJ!==null && llN && personal && totalNac){
+      var pesoLl = llJ/llN*100;
+      var razon = pesoLl / base;
+      items.push({
+        clase: razon > 1.5 ? 'h-tendencia' : 'h-exito',
+        titulo:'Carga operativa por elemento',
+        txt:'Jalisco atiende <span class="cifra">' + pct_CNSPE(pesoLl,2) +
+            '</span> de las llamadas de emergencia del país con <span class="cifra">' + pct_CNSPE(base,2) +
+            '</span> del personal: <span class="cifra">' + razon.toFixed(1) +
+            ' veces</span> más servicio por elemento que el promedio nacional.'
+      });
+    }
+  }
+
+  /* 5. Relevo generacional */
+  if(ESTADO_CNSPE.modulo==='formacion' && prev){
+    var ingA = M.series.cadetes_ing.jalisco[a], ingP = M.series.cadetes_ing.jalisco[prev];
+    var desA = M.series.cadetes_des.jalisco[a], desP = M.series.cadetes_des.jalisco[prev];
+    var dIng = delta_CNSPE(ingP, ingA), dDes = delta_CNSPE(desP, desA);
+    if(dIng!==null && dDes!==null && dIng < 0 && dDes > 0){
+      items.push({
+        clase:'h-alerta',
+        titulo:'Riesgo en el relevo generacional',
+        txt:'Los ingresos a las academias cayeron <span class="cifra">' + signo_CNSPE(dIng) +
+            '</span> mientras las deserciones subieron <span class="cifra">' + signo_CNSPE(dDes) +
+            '</span>. La combinación compromete la reposición del estado de fuerza.'
+      });
+    }
+  }
+
+  /* 6. Cobertura de datos de la edicion */
+  var totalMod = 0, conDato = 0;
+  IND_CNSPE.forEach(function(ind){
+    if(ind.oculto || ind.modulo!==ESTADO_CNSPE.modulo) return;
+    totalMod++;
+    var s = M.series[ind.id];
+    if(s.jalisco[a]!==null || s.nacional[a]!==null) conDato++;
+  });
+  if(totalMod){
+    items.push({
+      clase:'h-tendencia',
+      titulo:'Cobertura de la edición',
+      txt:'<span class="cifra">' + conDato + '</span> de <span class="cifra">' + totalMod +
+          '</span> indicadores de este módulo tienen dato publicado en la edición ' + a +
+          '. Las celdas sin información se preservan vacías, sin interpolar.'
+    });
+  }
+
+  if(!items.length){
+    cont.innerHTML = '<p class="sub">Sin elementos suficientes para generar hallazgos en esta combinación.</p>';
+    return;
+  }
+  items.forEach(function(it){
+    var d = document.createElement('div');
+    d.className = 'hallazgo ' + it.clase;
+    d.innerHTML = '<strong>' + it.titulo + '</strong><p>' + it.txt + '</p>';
+    cont.appendChild(d);
+  });
+}
+
+function pintarAuditoria_CNSPE(){
+  var cont = $C('auditoria');
+  cont.innerHTML = '';
+  AUDITORIA_CNSPE.forEach(function(x){
+    var d = document.createElement('div');
+    d.className = 'cnspe-aud-item cnspe-' + x.tipo;
+    d.innerHTML = '<div class="cnspe-aud-ico">' + x.ico + '</div>' +
+                  '<div><b>' + x.titulo + '</b>' + x.txt + '</div>';
+    cont.appendChild(d);
+  });
+}
+
+function pintarTabla_CNSPE(){
+  var M = ESTADO_CNSPE.modelo;
+  var t = $C('tabla');
+  var h = '<thead><tr><th>Indicador</th><th>Ámbito</th>';
+  ANIOS_CNSPE.forEach(function(a){ h += '<th>' + a + '</th>'; });
+  h += '</tr></thead><tbody>';
+
+  IND_CNSPE.forEach(function(ind){
+    if(ind.oculto || ind.modulo!==ESTADO_CNSPE.modulo) return;
+    var s = M.series[ind.id];
+    var hayN = ANIOS_CNSPE.some(function(a){ return s.nacional[a]!==null; });
+    var hayJ = ANIOS_CNSPE.some(function(a){ return s.jalisco[a]!==null; });
+
+    if(hayJ){
+      h += '<tr class="fila-est"><th>' + ind.nombre + '</th><td style="text-align:left">Jalisco</td>';
+      ANIOS_CNSPE.forEach(function(a){
+        var v = s.jalisco[a];
+        h += '<td' + (v===null?' class="nd"':'') + '>' + fmt_CNSPE(v, ind.unidad) + '</td>';
+      });
+      h += '</tr>';
+    }
+    if(hayN){
+      h += '<tr class="fila-nac"><th>' + (hayJ ? '' : ind.nombre) + '</th><td style="text-align:left">Nacional</td>';
+      ANIOS_CNSPE.forEach(function(a){
+        var v = s.nacional[a];
+        h += '<td' + (v===null?' class="nd"':'') + '>' + fmt_CNSPE(v, ind.unidad) + '</td>';
+      });
+      h += '</tr>';
+    }
+  });
+  h += '</tbody>';
+  t.innerHTML = h;
+}
+
+function pintarModulos_CNSPE(){
+  var cont = $C('modulos');
+  var txt = [
+    ['Estructura y recursos','Personal, tasa policial, presupuesto, infraestructura, certificación y condición del personal.'],
+    ['Ejercicio de la función','Llamadas de emergencia, puestas a disposición, aseguramientos, enfrentamientos y seguridad privada.'],
+    ['Formación y disciplina','Academias de formación inicial, movimiento de cadetes y régimen disciplinario.']
+  ];
+  cont.innerHTML = txt.map(function(x){
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--linea);display:grid;grid-template-columns:150px 1fr;gap:14px;">' +
+           '<b style="color:var(--marina-900);font-weight:600">' + x[0] + '</b><span style="color:var(--tenue)">' + x[1] + '</span></div>';
+  }).join('');
+}
+
+function pintarTodo_CNSPE(){
+  pintarPestanas_CNSPE();
+  pintarPortada_CNSPE();
+  pintarKPIs_CNSPE();
+  pintarPeso_CNSPE();
+  pintarTira_CNSPE();
+  pintarSerie_CNSPE();
+  pintarComp_CNSPE();
+  pintarCadetes_CNSPE();
+  pintarSexo_CNSPE();
+  pintarHallazgos_CNSPE();
+  pintarAuditoria_CNSPE();
+  pintarTabla_CNSPE();
+  pintarModulos_CNSPE();
+}
+
+/* ------------------------------------------------------------
+   9. AVISOS
+   ------------------------------------------------------------ */
+function avisoRespaldo_CNSPE(txt){
+  var c = $C('avisoRespaldo');
+  $C('avisoRespaldoTxt').textContent = txt;
+  c.classList.add('on');
+}
+function avisoError_CNSPE(txt){
+  var c = $C('avisoError');
+  $C('avisoErrorTxt').textContent = txt;
+  c.classList.add('on');
+}
+function limpiarAvisos_CNSPE(){
+  $C('avisoRespaldo').classList.remove('on');
+  $C('avisoError').classList.remove('on');
+}
+
+/* ------------------------------------------------------------
+   10. ARRANQUE
+   ------------------------------------------------------------ */
+function aplicar_CNSPE(matriz, fuente){
+  ESTADO_CNSPE.matriz = matriz;
+  ESTADO_CNSPE.modelo = construirModelo_CNSPE(matriz);
+  ESTADO_CNSPE.fuente = fuente;
+  pintarSelectorAnio_CNSPE();
+  pintarTodo_CNSPE();
+  $C('cargando').classList.add('oculto');
+  $C('reporte').classList.remove('oculto');
+}
+
+/* Valida que la hoja siga teniendo la forma esperada antes de usarla:
+   si alguien inserta o mueve filas, el tablero lo detecta y no pinta
+   cifras desplazadas. */
+function estructuraValida_CNSPE(matriz){
+  if(!matriz || matriz.length < 90) return false;
+  function tieneTexto(fila, frag){
+    var f = matriz[fila-1];
+    if(!f || !f[0]) return false;
+    return String(f[0]).toLowerCase().indexOf(frag) !== -1;
+  }
+  return tieneTexto(4,'nacional total') &&
+         tieneTexto(7,'jalisco') &&
+         tieneTexto(42,'jalisco') &&
+         tieneTexto(68,'total');
+}
+
+function cargar_CNSPE(forzar){
+  limpiarAvisos_CNSPE();
+  bajarCSV_CNSPE().then(function(txt){
+    var m = parseCSV_CNSPE(txt);
+    if(!estructuraValida_CNSPE(m)){
+      aplicar_CNSPE(RESPALDO_CNSPE, 'respaldo');
+      avisoRespaldo_CNSPE('La estructura de la hoja cambió respecto a lo esperado. Se muestra la copia de respaldo del 13 de agosto de 2026 para no presentar cifras desplazadas.');
+      return;
+    }
+    aplicar_CNSPE(m, 'vivo');
+  }).catch(function(err){
+    aplicar_CNSPE(RESPALDO_CNSPE, 'respaldo');
+    avisoRespaldo_CNSPE('No fue posible conectar con la hoja de cálculo (' + err.message + '). Se muestra la copia de respaldo del 13 de agosto de 2026.');
+  });
+}
+
+function enlazarBotones_CNSPE(){
+  var bAct = $C('btnActualizar');
+  if(bAct) bAct.addEventListener('click', function(){
+    bAct.disabled = true;
+    var t = bAct.textContent;
+    bAct.textContent = 'Actualizando…';
+    $C('reporte').classList.add('oculto');
+    $C('cargando').classList.remove('oculto');
+    Promise.resolve(cargar_CNSPE(true)).then(function(){
+      setTimeout(function(){ bAct.disabled=false; bAct.textContent=t; }, 700);
+    });
+  });
+
+  var bImg = $C('btnDescargar');
+  if(bImg) bImg.addEventListener('click', function(){
+    if(typeof html2canvas === 'undefined') return;
+    bImg.disabled = true;
+    var t = bImg.textContent;
+    bImg.textContent = 'Generando…';
+    html2canvas($C('reporte'), { backgroundColor:'#EDF0F5', scale:2, useCORS:true }).then(function(lienzo){
+      var a = document.createElement('a');
+      a.href = lienzo.toDataURL('image/png');
+      a.download = 'CNSPE_' + ESTADO_CNSPE.anio + '_Jalisco.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }).catch(function(e){
+      avisoError_CNSPE('No se pudo generar la imagen: ' + e.message);
+    }).then(function(){
+      bImg.disabled = false; bImg.textContent = t;
+    });
+  });
+
+  var bFicha = $C('btnFicha');
+  if(bFicha) bFicha.addEventListener('click', function(){
+    var a = document.createElement('a');
+    a.href = FICHA_PDF_CNSPE;
+    a.download = 'Ficha_CNSPE_2026_Jalisco.pdf';
+    a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+}
+
+function iniciar_CNSPE(){
+  enlazarBotones_CNSPE();
+  cargar_CNSPE(false);
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', iniciar_CNSPE);
+}else{
+  iniciar_CNSPE();
+}
+
+})();
+</script>
+
 </body>
 </html>
